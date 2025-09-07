@@ -20,7 +20,7 @@ const unsigned int PULSE_US = 3;                               // 2–3 µs for 
 
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
 
-/*********************************************************************/
+/****************END OF MOTOR GLOBAL VARS*****************************/
 
 /****************SENSOR GLOBAL VARS***********************************/
 #include <Wire.h>
@@ -29,17 +29,17 @@ AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
 SFE_ISL29125 RGB_sensor;
 
 // Raw->[0..255] scaling bounds (keep from your last run)
-const unsigned int redLow = 2128;
-const unsigned int redHigh = 65535;
-const unsigned int greenLow = 2523;
-const unsigned int greenHigh = 65535;
-const unsigned int blueLow = 1818;
-const unsigned int blueHigh = 65535;
+const unsigned int redLow = 44;
+const unsigned int redHigh = 1362;
+const unsigned int greenLow = 56;
+const unsigned int greenHigh = 2635;
+const unsigned int blueLow = 33;
+const unsigned int blueHigh = 1240; 
 
 // Fixed averages (from your printout)
-const float ENV_AVG_R    = 0.0f,   ENV_AVG_G    = 0.0f,   ENV_AVG_B    = 0.0f;
-const float BLUE_AVG_R   = 0.70f,  BLUE_AVG_G   = 0.80f,  BLUE_AVG_B   = 1.50f;
-const float YELLOW_AVG_R = 15.20f, YELLOW_AVG_G = 12.70f, YELLOW_AVG_B = 12.70f;
+const float ENV_AVG_R    = 9.00f,   ENV_AVG_G    = 10.10f,   ENV_AVG_B    = 15.30f;
+const float BLUE_AVG_R   = 34.00f,  BLUE_AVG_G   = 71.40f,  BLUE_AVG_B   = 214.20f;
+const float YELLOW_AVG_R = 255.00f, YELLOW_AVG_G = 255.00f, YELLOW_AVG_B = 255.00f;
 const float RED_AVG_R    = 7.70f, RED_AVG_G    = 3.50f,  RED_AVG_B    = 1.80f;
 
 // Working copies (used by the classifier)
@@ -51,7 +51,7 @@ float redBallAvgR, redBallAvgG, redBallAvgB;
 // latest scaled readings
 int redVal, greenVal, blueVal;
 int redScaled, greenScaled, blueScaled;
-/*********************************************************************/
+/*****************END OF SENSOR GLOBAL VARS***************************/
 
 // helper to read & scale into [0–255]
 bool sampleScaledRGB() {
@@ -59,7 +59,7 @@ bool sampleScaledRGB() {
   unsigned int greenRaw = RGB_sensor.readGreen();
   unsigned int blueRaw  = RGB_sensor.readBlue();
 
-  // ignore bogus startup sample without blocking
+  // ignore void startup sample without blocking
   if (redRaw == 0 && greenRaw == 0 && blueRaw == 0) return false;
 
   int r = map(redRaw,   redLow,   redHigh,   0, 255);
@@ -99,13 +99,14 @@ void setup() {
   Serial.print("Yellow avg= ");   Serial.print(yellowBallAvgR); Serial.print(", "); Serial.print(yellowBallAvgG); Serial.print(", "); Serial.println(yellowBallAvgB);
   Serial.print("Red avg   = ");   Serial.print(redBallAvgR);    Serial.print(", "); Serial.print(redBallAvgG);    Serial.print(", "); Serial.println(redBallAvgB);
   */
-  /********************************************************/
+  /***************END OF SENSOR STUFF**********************/
 
 
   /***************MOTOR STUFF******************************/
   stepper.setMinPulseWidth(PULSE_US);
   stepper.setMaxSpeed(MAX_SPEED);
   stepper.setAcceleration(ACCEL);
+  /***************END OF MOTOR STUFF***********************/
 }
 void sense() {
   //Serial.println("sense() called");
@@ -127,13 +128,13 @@ void sense() {
       float distEnv    = sq(redVal - envAvgR)        + sq(greenVal - envAvgG)        + sq(blueVal - envAvgB);
       float distBlue   = sq(redVal - blueBallAvgR)   + sq(greenVal - blueBallAvgG)   + sq(blueVal - blueBallAvgB);
       float distYellow = sq(redVal - yellowBallAvgR) + sq(greenVal - yellowBallAvgG) + sq(blueVal - yellowBallAvgB);
-      float distRed    = sq(redVal - redBallAvgR)    + sq(greenVal - redBallAvgG)    + sq(blueVal - redBallAvgB);
+      //float distRed    = sq(redVal - redBallAvgR)    + sq(greenVal - redBallAvgG)    + sq(blueVal - redBallAvgB);
 
       int choice = 0; // 0=no, 1=blue, 2=yellow, 3=red
       float minDist = distEnv;
       if (distBlue   < minDist) { minDist = distBlue;   choice = 1; }
       if (distYellow < minDist) { minDist = distYellow; choice = 2; }
-      if (distRed    < minDist) { minDist = distRed;    choice = 3; }
+      //if (distRed    < minDist) { minDist = distRed;    choice = 3; }
 
       counts[choice]++;
     }
@@ -170,13 +171,13 @@ void spinRevs(float revs, int dir) {
 
 void loop(){
   spinRevs(1.0/4.0f, +1);   // 360° CW
-  Serial.println("spinning full speed CW for 1s");
+  Serial.println("spin");
   delay(500);
 
   //spinRevs(0.0f, +1);   // 360° CW
-  Serial.println("stopping for 1s");
+  Serial.println("stop");
   delay(500); // split so that it stabilized for half a second then senses
-  sense();
   Serial.println("calling sense()");
+  sense();
   delay(500);
 }
