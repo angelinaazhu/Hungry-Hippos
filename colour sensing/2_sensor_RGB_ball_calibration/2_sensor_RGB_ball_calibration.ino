@@ -1,23 +1,31 @@
-
-/******************************************************************************  
- Ball_Detector.ino  
- 1) Environment calibration (30 s)  
- 2) Ball calibration (30 s)  
- 3) Loop: classify each RGB reading as “Ball” or “No ball”  
-*******************************************************************************/
-
 #include <Wire.h>
 #include "SFE_ISL29125.h"
+
+/************LED vars***************/
+#include <Adafruit_NeoPixel.h>
+#define LED_PIN 6 // Pin where DIN (pin 4 of WS2812D-265) is connected
+#define NUM_LEDS 2 // Number of LEDs in your strip (or single LED)
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+void light_LED(){
+  strip.begin();        // Initialize LED
+  strip.show();         // Turn off all LEDs initially
+  strip.setBrightness(255); // Max brightness (0-255)
+  strip.setPixelColor(0, strip.Color(255, 255, 255));
+  strip.setPixelColor(1, strip.Color(255, 255, 255));
+  strip.show();         // Update LED
+}
+/********END OF LED vars************/
 
 SFE_ISL29125 RGB_sensor;
 
 // Your scaling bounds (from your last run)
-const unsigned int redLow = 2128;
-const unsigned int redHigh = 65535;
-const unsigned int greenLow = 2523;
-const unsigned int greenHigh = 65535;
-const unsigned int blueLow = 1818;
-const unsigned int blueHigh = 65535;
+const unsigned int redLow = 44;
+const unsigned int redHigh = 1362;
+const unsigned int greenLow = 56;
+const unsigned int greenHigh = 2635;
+const unsigned int blueLow = 33;
+const unsigned int blueHigh = 1240; 
 
 // calibrated averages
 float envAvgR, envAvgG, envAvgB;
@@ -39,7 +47,7 @@ void sampleScaledRGB() {
   unsigned int greenRaw = RGB_sensor.readGreen();
   unsigned int blueRaw = RGB_sensor.readBlue();
 
-  // skip any bogus 0,0,0 startup sample
+  // skip any 0,0,0 startup sample
   if (redRaw == 0 && greenRaw == 0 && blueRaw == 0) {
     delay(1000);
     return;
@@ -54,24 +62,11 @@ void sampleScaledRGB() {
   blueVal = constrain(blueScaled, 0, 255);
 }
 
-void setup() {
-  Serial.begin(9600);
-
-  if (!RGB_sensor.init()) {
-    Serial.println("Sensor init failed!");
-    while (1);
-  }
-
-  // discard first conversion -- probably 0
-  RGB_sensor.readRed();
-  RGB_sensor.readGreen();
-  RGB_sensor.readBlue();
-  delay(100);
-
+void calibration(){
   // --- 1) Environment calibration ---
   Serial.println(" ");
   Serial.println("=== ENVIRONMENT CALIBRATION ===");
-  Serial.println("Ensure NO ball is visible. Sampling for 30s...");
+  Serial.println("Ensure NO ball is visible. Calibrating...");
 
   unsigned long start = millis();
   unsigned long count = 0;
@@ -79,6 +74,7 @@ void setup() {
 
   while (millis() - start < CALIB_DURATION) { //while curr time - start < 30s
                                               // = while time passed < 30s
+    light_LED();
     sampleScaledRGB(); // red/green/blueVals all have scaled 225 vals
     sumR += redVal; // accumulate
     sumG += greenVal;
@@ -106,13 +102,14 @@ void setup() {
   Serial.read();  // clear the incoming byte
 
   Serial.println("=== BLUE BALL CALIBRATION ===");
-  Serial.println("Place BLUE BALL in view. Sampling for 30s...");
+  Serial.println("Place BLUE BALL in view. Calibrating...");
 
   start = millis();
   count = 0;
   sumR = sumG = sumB = 0;
 
   while (millis() - start < CALIB_DURATION) {
+    light_LED();
     sampleScaledRGB();
     sumR += redVal;
     sumG += greenVal;
@@ -142,13 +139,14 @@ void setup() {
   Serial.read();  // clear the incoming byte
 
   Serial.println("=== YELLOW BALL CALIBRATION ===");
-  Serial.println("Place YELLOW BALL in view. Sampling for 30s...");
+  Serial.println("Place YELLOW BALL in view. Calibrating...");
 
   start = millis();
   count = 0;
   sumR = sumG = sumB = 0;
 
   while (millis() - start < CALIB_DURATION) {
+    light_LED();
     sampleScaledRGB();
     sumR += redVal;
     sumG += greenVal;
@@ -170,20 +168,22 @@ void setup() {
   
   // --- 4) RED Ball calibration ---
   // …after finishing BLUE calibration…
-  while (Serial.available()) Serial.read(); 
+  //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
+  /*while (Serial.available()) Serial.read(); 
   // wait for user to put ball in view
   Serial.println("\nPress any key to begin RED BALL calibration");
   while (!Serial.available());
   Serial.read();  // clear the incoming byte
 
   Serial.println("=== RED BALL CALIBRATION ===");
-  Serial.println("Place RED BALL in view. Sampling for 30s...");
+  Serial.println("Place RED BALL in view. Calibrating...");
 
   start = millis();
   count = 0;
   sumR = sumG = sumB = 0;
 
   while (millis() - start < CALIB_DURATION) {
+    light_LED();
     sampleScaledRGB();
     sumR += redVal;
     sumG += greenVal;
@@ -201,21 +201,40 @@ void setup() {
   Serial.print("Red Ball avg R,G,B = ");
   Serial.print(redBallAvgR); Serial.print(F(", "));
   Serial.print(redBallAvgG); Serial.print(F(", "));
-  Serial.println(redBallAvgB);
+  Serial.println(redBallAvgB);*/
   Serial.println("\n*** Calibration complete — entering detection loop ***");
 }
 
+void setup() {
+  Serial.begin(9600);
+
+  if (!RGB_sensor.init()) {
+    Serial.println("Sensor init failed!");
+    while (1);
+  }
+  
+  light_LED();
+
+  // discard first conversion -- probably 0
+  RGB_sensor.readRed();
+  RGB_sensor.readGreen();
+  RGB_sensor.readBlue();
+  delay(100);
+  
+  calibration();
+
+}
+
 void loop() {
-  // 1) wait for the user to start a new ball reading
-  /*Serial.println(F("\nPress any key to begin BALL classification"));
+  light_LED();
+  Serial.println(F("\nPress any key to begin BALL classification"));
   while (!Serial.available()) {
     ; // do nothing until a key comes in
   }
   Serial.read();               // clear the incoming byte
   while (Serial.available())   // flush any extra bytes
-    Serial.read();*/
+    Serial.read();
 
-  // 2) sample & classify repeatedly for a fixed window (e.g. 3 s)
   const unsigned long WINDOW_MS   = 1000UL;
   const unsigned long INTERVAL_MS = 100UL;   // sample every 100 ms
   unsigned long start = millis();
@@ -230,14 +249,14 @@ void loop() {
     float distEnv    = sq(redVal - envAvgR)    + sq(greenVal - envAvgG)    + sq(blueVal - envAvgB);
     float distBlue   = sq(redVal - blueBallAvgR)   + sq(greenVal - blueBallAvgG)   + sq(blueVal - blueBallAvgB);
     float distYellow = sq(redVal - yellowBallAvgR) + sq(greenVal - yellowBallAvgG) + sq(blueVal - yellowBallAvgB);
-    float distRed    = sq(redVal - redBallAvgR)    + sq(greenVal - redBallAvgG)    + sq(blueVal - redBallAvgB);
+    //float distRed    = sq(redVal - redBallAvgR)    + sq(greenVal - redBallAvgG)    + sq(blueVal - redBallAvgB); //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
 
     // pick the smallest
     float minDist = distEnv;
     int   choice  = 0;  // 0=no, 1=blue, 2=yellow, 3=red
     if (distBlue   < minDist) { minDist = distBlue;   choice = 1; }
     if (distYellow < minDist) { minDist = distYellow; choice = 2; }
-    if (distRed    < minDist) { minDist = distRed;    choice = 3; }
+    //if (distRed    < minDist) { minDist = distRed;    choice = 3; } //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
 
     counts[choice]++;      // tally this vote
     delay(INTERVAL_MS);

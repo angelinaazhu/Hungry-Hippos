@@ -1,16 +1,25 @@
-/******************************************************************************\  
- Calibrate_ISL29125.ino  
- Runs the ISL29125 sensor for 30 seconds, finds min/max R/G/B,  
- and prints out the values for use in your map()/constrain() ranges.  
-*******************************************************************************/
-
 #include <Wire.h>
 #include "SFE_ISL29125.h"  
+
+/************LED vars***************/
+#include <Adafruit_NeoPixel.h>
+#define LED_PIN 6 // Pin where DIN (pin 4 of WS2812D-265) is connected
+#define NUM_LEDS 2 // Number of LEDs in your strip (or single LED)
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+void light_LED(){
+  strip.begin();        // Initialize LED
+  strip.show();         // Turn off all LEDs initially
+  strip.setBrightness(255); // Max brightness (0-255)
+  strip.setPixelColor(0, strip.Color(255, 255, 255));
+  strip.setPixelColor(1, strip.Color(255, 255, 255));
+  strip.show();         // Update LED
+}
+/********END OF LED vars************/
 
 SFE_ISL29125 RGB_sensor;
 
 // How long to sample (millis)
-const unsigned long calibrationInterval = 60000UL;  // 30 seconds
+const unsigned long calibrationInterval = 60000UL;  // 1 min
 unsigned long startTime;
 bool calibrationDone = false;
 
@@ -24,17 +33,19 @@ unsigned int blueMax  = 0;
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial);           // wait for Serial on Leonardo/Micro (safe on Uno too)
+  while (!Serial);
   Serial.println(" ");
   if (!RGB_sensor.init()) {
     Serial.println(F("Sensor init failed! Check wiring."));
     while (1);               // halt here
   }
+  light_LED(); // light up LED
   Serial.println(F("Sensor init successful. Starting 30s calibration..."));
   startTime = millis();
 }
 
 void loop() {
+  light_LED(); // keep trying to light up LED in case of disconnection
   if (!calibrationDone) {
     unsigned long elapsed = millis() - startTime;
     
@@ -44,7 +55,7 @@ void loop() {
       unsigned int g = RGB_sensor.readGreen();
       unsigned int b = RGB_sensor.readBlue();
 
-      // if it’s that bogus startup sample, just wait and try again
+      // if it’s a void startup sample, wait and try again
       if (r == 0 && g == 0 && b == 0) {
       delay(2000);
       return;
