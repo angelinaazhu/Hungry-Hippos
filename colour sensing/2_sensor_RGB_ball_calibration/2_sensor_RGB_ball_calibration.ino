@@ -1,265 +1,305 @@
+/*
+This program calibrates 2 things...
+1) light intensity: scale raw light sensor input intensity values to RGB [0,255]
+2) ball colour: gets the average scaled RGB values of different ball colours
+Then classifies ball on key press
+*/ 
+
 #include <Wire.h>
 #include "SFE_ISL29125.h"
-
-/************LED vars***************/
 #include <Adafruit_NeoPixel.h>
-#define LED_PIN 6 // Pin where DIN (pin 4 of WS2812D-265) is connected
-#define NUM_LEDS 2 // Number of LEDs in your strip (or single LED)
-Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-void light_LED(){
-  strip.begin();        // Initialize LED
-  strip.show();         // Turn off all LEDs initially
-  strip.setBrightness(255); // Max brightness (0-255)
-  strip.setPixelColor(0, strip.Color(255, 255, 255));
-  strip.setPixelColor(1, strip.Color(255, 255, 255));
-  strip.show();         // Update LED
-}
-/********END OF LED vars************/
+#define LED_PIN 6   // DIN pin of LED
+#define NUM_LEDS 2  // num of LEDs chained together
 
-SFE_ISL29125 RGB_sensor;
+#define ENV 0
+#define BLUE 1
+#define YELLOW 2
+#define RED 3
 
-// Your scaling bounds (from your last run)
-const unsigned int redLow = 44;
-const unsigned int redHigh = 1362;
-const unsigned int greenLow = 56;
-const unsigned int greenHigh = 2635;
-const unsigned int blueLow = 33;
-const unsigned int blueHigh = 1240; 
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800); // LED object
+SFE_ISL29125 RGB_sensor; // colour sensor object
 
-// calibrated averages
-float envAvgR, envAvgG, envAvgB;
-float blueBallAvgR, blueBallAvgG, blueBallAvgB;
-float yellowBallAvgR, yellowBallAvgG, yellowBallAvgB;
-float redBallAvgR, redBallAvgG, redBallAvgB;
+unsigned int r, g, b; // raw intensity values read in directly from sensor
+int redScaled, greenScaled, blueScaled; // intermediate scaled RGB values
+int redVal, greenVal, blueVal; // clipped ver of intemediate scaled RGB values
 
-// temporary scaled readings
-int redVal, greenVal, blueVal;
-int redScaled, greenScaled, blueScaled;
+// initialize extremes to store min/max RGB intensity values
+unsigned int redMin   = 0xFFFF; // will store min R value sensor sensed
+unsigned int greenMin = 0xFFFF;
+unsigned int blueMin  = 0xFFFF;
+unsigned int redMax   = 0;      // will store max R value sensor sensed
+unsigned int greenMax = 0;
+unsigned int blueMax  = 0;
 
-// timing
-const unsigned long CALIB_DURATION  = 10000UL;  // 30 seconds
-const unsigned long SAMPLE_INTERVAL = 1000UL;   // 1 s between samples
+// calibrated env & ball colour averages
+double envAvgR, envAvgG, envAvgB;
+double blueBallAvgR, blueBallAvgG, blueBallAvgB;
+double yellowBallAvgR, yellowBallAvgG, yellowBallAvgB;
+double redBallAvgR, redBallAvgG, redBallAvgB;
 
-// helper to read & scale into [0–255]
-void sampleScaledRGB() {
-  unsigned int redRaw = RGB_sensor.readRed();
-  unsigned int greenRaw = RGB_sensor.readGreen();
-  unsigned int blueRaw = RGB_sensor.readBlue();
+const unsigned long INTENSITY_CALIB_DURATION = 30000UL; // calibrate light intensity duration
+const unsigned long BALL_CALIB_DURATION = 2000UL; // calibrate ball duration
+const unsigned long SAMPLE_INTERVAL = 500UL; // time between samples
 
-  // skip any 0,0,0 startup sample
-  if (redRaw == 0 && greenRaw == 0 && blueRaw == 0) {
-    delay(1000);
-    return;
-  }
+const unsigned long VOTING_WINDOW   = 1000UL; // voting window for each ball
+const unsigned long CLASSIFY_INTERVAL = 50UL; // how long to wait between each vote
 
-  redScaled = map(redRaw, redLow, redHigh, 0, 255);
-  greenScaled = map(greenRaw, greenLow, greenHigh, 0, 255);
-  blueScaled = map(blueRaw, blueLow, blueHigh, 0, 255);
+void light_LED();
+void remove_void_sample();
+void light_intensity_calibration();
+void sample_scaled_RGB();
+void ball_colour_calibration(int colour);
+void ball_colour_calibration_helper();
+void classify();
 
-  redVal = constrain(redScaled, 0, 255);
-  greenVal = constrain(greenScaled, 0, 255);
-  blueVal = constrain(blueScaled, 0, 255);
-}
-
-void calibration(){
-  // --- 1) Environment calibration ---
-  Serial.println(" ");
-  Serial.println("=== ENVIRONMENT CALIBRATION ===");
-  Serial.println("Ensure NO ball is visible. Calibrating...");
-
-  unsigned long start = millis();
-  unsigned long count = 0;
-  unsigned long sumR = 0, sumG = 0, sumB = 0; // accumulate all R, G, B values
-
-  while (millis() - start < CALIB_DURATION) { //while curr time - start < 30s
-                                              // = while time passed < 30s
-    light_LED();
-    sampleScaledRGB(); // red/green/blueVals all have scaled 225 vals
-    sumR += redVal; // accumulate
-    sumG += greenVal;
-    sumB += blueVal;
-    count++;
-    Serial.print(".");  // progress indicator
-    delay(SAMPLE_INTERVAL);
-  }
-
-  envAvgR = float(sumR) / count; //avg of R: totalR / num of accumulations
-  envAvgG = float(sumG) / count;
-  envAvgB = float(sumB) / count;
-
-  Serial.println();
-  Serial.print("Env avg R,G,B = ");
-  Serial.print(envAvgR); Serial.print(", ");
-  Serial.print(envAvgG); Serial.print(", ");
-  Serial.println(envAvgB);
-
-  
-  // --- 2) BLUE Ball calibration ---
-  // wait for user to put ball in view
-  Serial.println("\nPress any key to begin BLUE BALL calibration");
-  while (!Serial.available());
-  Serial.read();  // clear the incoming byte
-
-  Serial.println("=== BLUE BALL CALIBRATION ===");
-  Serial.println("Place BLUE BALL in view. Calibrating...");
-
-  start = millis();
-  count = 0;
-  sumR = sumG = sumB = 0;
-
-  while (millis() - start < CALIB_DURATION) {
-    light_LED();
-    sampleScaledRGB();
-    sumR += redVal;
-    sumG += greenVal;
-    sumB += blueVal;
-    count++;
-    Serial.print("*");
-    delay(SAMPLE_INTERVAL);
-  }
-
-  blueBallAvgR = float(sumR) / count;
-  blueBallAvgG = float(sumG) / count;
-  blueBallAvgB = float(sumB) / count;
-
-  Serial.println();
-  Serial.print("Blue Ball avg R,G,B = ");
-  Serial.print(blueBallAvgR); Serial.print(F(", "));
-  Serial.print(blueBallAvgG); Serial.print(F(", "));
-  Serial.println(blueBallAvgB);
-  
-  
-  // --- 3) YELLOW Ball calibration ---
-  // …after finishing BLUE calibration…
-  while (Serial.available()) Serial.read(); 
-  // wait for user to put ball in view
-  Serial.println("\nPress any key to begin YELLOW BALL calibration");
-  while (!Serial.available());
-  Serial.read();  // clear the incoming byte
-
-  Serial.println("=== YELLOW BALL CALIBRATION ===");
-  Serial.println("Place YELLOW BALL in view. Calibrating...");
-
-  start = millis();
-  count = 0;
-  sumR = sumG = sumB = 0;
-
-  while (millis() - start < CALIB_DURATION) {
-    light_LED();
-    sampleScaledRGB();
-    sumR += redVal;
-    sumG += greenVal;
-    sumB += blueVal;
-    count++;
-    Serial.print("*");
-    delay(SAMPLE_INTERVAL);
-  }
-
-  yellowBallAvgR = float(sumR) / count;
-  yellowBallAvgG = float(sumG) / count;
-  yellowBallAvgB = float(sumB) / count;
-
-  Serial.println();
-  Serial.print("Yellow Ball avg R,G,B = ");
-  Serial.print(yellowBallAvgR); Serial.print(F(", "));
-  Serial.print(yellowBallAvgG); Serial.print(F(", "));
-  Serial.println(yellowBallAvgB);
-  
-  // --- 4) RED Ball calibration ---
-  // …after finishing BLUE calibration…
-  //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
-  /*while (Serial.available()) Serial.read(); 
-  // wait for user to put ball in view
-  Serial.println("\nPress any key to begin RED BALL calibration");
-  while (!Serial.available());
-  Serial.read();  // clear the incoming byte
-
-  Serial.println("=== RED BALL CALIBRATION ===");
-  Serial.println("Place RED BALL in view. Calibrating...");
-
-  start = millis();
-  count = 0;
-  sumR = sumG = sumB = 0;
-
-  while (millis() - start < CALIB_DURATION) {
-    light_LED();
-    sampleScaledRGB();
-    sumR += redVal;
-    sumG += greenVal;
-    sumB += blueVal;
-    count++;
-    Serial.print("*");
-    delay(SAMPLE_INTERVAL);
-  }
-
-  redBallAvgR = float(sumR) / count;
-  redBallAvgG = float(sumG) / count;
-  redBallAvgB = float(sumB) / count;
-
-  Serial.println();
-  Serial.print("Red Ball avg R,G,B = ");
-  Serial.print(redBallAvgR); Serial.print(F(", "));
-  Serial.print(redBallAvgG); Serial.print(F(", "));
-  Serial.println(redBallAvgB);*/
-  Serial.println("\n*** Calibration complete — entering detection loop ***");
-}
-
+/****************************SETUP & MAIN LOOP***************************/
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(9600); // terminal baud rate
+  while (!Serial);    // waits for USB serial interface object to connect
+  Serial.println(" ");
 
+  // Checks if sensor is connected properly -> if not, re-wire & re-upload code
   if (!RGB_sensor.init()) {
-    Serial.println("Sensor init failed!");
-    while (1);
+    Serial.println("Sensor init failed! Check wiring.");
+    while (1); // stays here
   }
   
-  light_LED();
+  // LED
+  strip.begin();// init LED
+  strip.show(); // turn off all LED initially
+  light_LED();  // light up LED
 
-  // discard first conversion -- probably 0
+  Serial.println("Sensor init successful.");
+
+  /*// discard first conversion -- probably 0
   RGB_sensor.readRed();
   RGB_sensor.readGreen();
   RGB_sensor.readBlue();
-  delay(100);
+  delay(1000);*/
+
+  Serial.println("Starting general light intensity calibration");
+  light_intensity_calibration();
   
-  calibration();
+  Serial.println("Starting ball colour calibration");
+  ball_colour_calibration_helper();
 
 }
 
 void loop() {
   light_LED();
   Serial.println(F("\nPress any key to begin BALL classification"));
-  while (!Serial.available()) {
-    ; // do nothing until a key comes in
-  }
-  Serial.read();               // clear the incoming byte
-  while (Serial.available())   // flush any extra bytes
-    Serial.read();
+  while (!Serial.available());
+  Serial.read();
+  while (Serial.available()) { Serial.read(); }
 
-  const unsigned long WINDOW_MS   = 1000UL;
-  const unsigned long INTERVAL_MS = 100UL;   // sample every 100 ms
+  classify();
+
+  // then loop() repeats, waiting for the next key press
+}
+/************************END OF SETUP & MAIN LOOP***************************/
+
+void light_LED(){
+  strip.setBrightness(255); // brightness [0-255]
+  strip.setPixelColor(0, strip.Color(255, 255, 255)); //LED0: R,G,B=255,255,255
+  strip.setPixelColor(1, strip.Color(255, 255, 255)); //LED1: R,G,B=255,255,255
+  strip.show(); // update LED with set brightness & colour
+}
+
+void remove_void_sample(){
+  // store raw light intensity values that sensor reads
+  r = RGB_sensor.readRed();
+  g = RGB_sensor.readGreen();
+  b = RGB_sensor.readBlue();
+
+  // if it’s a void startup sample (all 0s), wait 1s, try in next loop() run
+  while (r == 0 || g == 0 || b == 0) {
+    delay(1000);
+    r = RGB_sensor.readRed();
+    g = RGB_sensor.readGreen();
+    b = RGB_sensor.readBlue();
+  }
+}
+
+void light_intensity_calibration(){
   unsigned long start = millis();
 
-  // counts[0] = no ball, [1]=blue, [2]=yellow, [3]=red
+  while ((millis() - start) < INTENSITY_CALIB_DURATION) {
+    light_LED(); // keep lighting up LED in case of disconnection
+    
+    remove_void_sample();
+
+    // update min
+    if (r < redMin)   redMin   = r;
+    if (g < greenMin) greenMin = g;
+    if (b < blueMin)  blueMin  = b;
+    
+    // update max
+    if (r > redMax)   redMax   = r;
+    if (g > greenMax) greenMax = g;
+    if (b > blueMax)  blueMax  = b;
+    
+    Serial.print("*");  // progress indicator
+    delay(SAMPLE_INTERVAL); // wait between samples
+  }
+      
+  Serial.println("\nLight Intensity Calibration Complete");
+  
+  Serial.print("redMin = ");
+  Serial.println(redMin);
+  Serial.print("redMax = ");
+  Serial.println(redMax);
+
+  Serial.print("greenMin = ");
+  Serial.println(greenMin);
+  Serial.print("greenMax = ");
+  Serial.println(greenMax);
+
+  Serial.print("blueMin = ");  
+  Serial.println(blueMin);
+  Serial.print("blueMax = "); 
+  Serial.println(blueMax);
+
+}
+
+void sample_scaled_RGB() { // read & scale raw values from sensor into [0–255]
+  remove_void_sample();
+
+  redScaled = map(r, redMin, redMax, 0, 255);
+  greenScaled = map(g, greenMin, greenMax, 0, 255);
+  blueScaled = map(b, blueMin, blueMax, 0, 255);
+
+  redVal = constrain(redScaled, 0, 255);
+  greenVal = constrain(greenScaled, 0, 255);
+  blueVal = constrain(blueScaled, 0, 255);
+}
+
+void ball_colour_calibration(int colour){
+  // accumulate and avg the mean R, G, B values of the env & diff ball colours
+  // creates a point of reference in 3D space for how to define each ball colour
+  // (envAvgR, envAvgG, engAvgB), and same for ball colours
+
+  unsigned long start = millis();
+  unsigned long count = 0; // counts how many samples taken
+  unsigned long sumR = 0, sumG = 0, sumB = 0; // accumulate all R, G, B values
+
+  while (millis() - start < BALL_CALIB_DURATION) { // while time passed < 30s
+    light_LED(); // keep lighting up LED in case of disconnection
+    sample_scaled_RGB(); // red/green/blueVals all have scaled 225 vals
+
+    sumR += redVal; // accumulate
+    sumG += greenVal;
+    sumB += blueVal;
+    count++;
+    Serial.print("*");  // progress indicator
+
+    delay(SAMPLE_INTERVAL);
+  } // BALL_CALIB_DURATION is up
+
+  Serial.println(" ");
+
+  double avgR = double(sumR) / count; //avg of R: totalR / num of accumulations
+  double avgG = double(sumG) / count;
+  double avgB = double(sumB) / count;
+
+  switch (colour) {
+    case ENV:
+      envAvgR = avgR;
+      envAvgG = avgG;
+      envAvgB = avgB;
+      Serial.print("ENV ");
+      break;
+    case BLUE:
+      blueBallAvgR = avgR;
+      blueBallAvgG = avgG;
+      blueBallAvgB = avgB;
+      Serial.print("BLUE ");
+      break;
+    case YELLOW:
+      yellowBallAvgR = avgR;
+      yellowBallAvgG = avgG;
+      yellowBallAvgB = avgB;
+      Serial.print("YELLOW ");
+      break;
+    case RED:
+      redBallAvgR = avgR;
+      redBallAvgG = avgG;
+      redBallAvgB = avgB;
+      Serial.print("RED ");
+      break;
+  }
+
+  Serial.print("R,G,B = ");
+  Serial.print(avgR); Serial.print(", ");
+  Serial.print(avgG); Serial.print(", ");
+  Serial.println(avgB);
+
+}
+
+void ball_colour_calibration_helper(){
+  // --- 1) Environment calibration ---
+  Serial.println("Ensure NO ball is visible. Press any key to begin ENVIRONMENT calibration");
+  while (!Serial.available());
+  Serial.read();
+  Serial.println("Calibrating ENVIRONMENT");
+  ball_colour_calibration(ENV);
+
+  // --- 2) BLUE Ball calibration ---
+  Serial.println("Place BLUE ball in front of sensor. Press any key to begin BLUE BALL calibration");
+  while (!Serial.available());
+  Serial.read();
+  Serial.println("Calibrating BLUE BALL");
+  ball_colour_calibration(BLUE);
+
+  // --- 3) YELLOW Ball calibration ---
+  Serial.println("Place YELLOW ball in front of sensor. Press any key to begin YELLOW BALL calibration");
+  while (!Serial.available());
+  Serial.read();
+  Serial.println("Calibrating YELLOW BALL");
+  ball_colour_calibration(YELLOW);
+
+  // --- 4) RED Ball calibration ---
+  /*Serial.println("Place RED ball in front of sensor. Press any key to begin RED BALL calibration");
+  while (!Serial.available());
+  Serial.read();
+  Serial.println("Calibrating RED BALL");
+  ball_colour_calibration(RED); */
+
+  Serial.println("Ball Calibration complete! Entering detection loop");
+
+}
+
+void classify(){
+  unsigned long start = millis();
+
+  // counts is an array, each element tallies up num votes for each ball colour
+  // counts[0] = votes for ENV -> matches macro
+  // counts[1] = votes for BLUE -> matches macro
+  // counts[2] = votes for YELLOW -> matches macro
+  // counts[3] = votes for RED -> matches macro
   unsigned int counts[4] = { 0, 0, 0, 0 };
 
-  while (millis() - start < WINDOW_MS) {
-    sampleScaledRGB();  
+  while ((millis() - start) < VOTING_WINDOW) {
 
-    // compute all 4 distances
-    float distEnv    = sq(redVal - envAvgR)    + sq(greenVal - envAvgG)    + sq(blueVal - envAvgB);
-    float distBlue   = sq(redVal - blueBallAvgR)   + sq(greenVal - blueBallAvgG)   + sq(blueVal - blueBallAvgB);
-    float distYellow = sq(redVal - yellowBallAvgR) + sq(greenVal - yellowBallAvgG) + sq(blueVal - yellowBallAvgB);
-    //float distRed    = sq(redVal - redBallAvgR)    + sq(greenVal - redBallAvgG)    + sq(blueVal - redBallAvgB); //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
+    sample_scaled_RGB();
+    // redVal is the scaled R value from sensor, and same for other colours
+    // (redVal, greenVal, blueVal) creates a sampled point in 3D space (with R,G,B axes)
 
-    // pick the smallest
+    // compute euclidean distance btwn sampled point and ball colour point
+    float distEnv = sqrt(sq(redVal - envAvgR) + sq(greenVal - envAvgG) + sq(blueVal - envAvgB));
+    float distBlue = sqrt(sq(redVal - blueBallAvgR) + sq(greenVal - blueBallAvgG) + sq(blueVal - blueBallAvgB));
+    float distYellow = sqrt(sq(redVal - yellowBallAvgR) + sq(greenVal - yellowBallAvgG) + sq(blueVal - yellowBallAvgB));
+    //float distRed = sq(redVal - redBallAvgR) + sq(greenVal - redBallAvgG) + sq(blueVal - redBallAvgB); //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
+
+    // pick shortest distance to be the output colour
     float minDist = distEnv;
-    int   choice  = 0;  // 0=no, 1=blue, 2=yellow, 3=red
-    if (distBlue   < minDist) { minDist = distBlue;   choice = 1; }
+    int choice = 0;  // 0=no, 1=blue, 2=yellow, 3=red
+    if (distBlue < minDist) { minDist = distBlue; choice = 1; }
     if (distYellow < minDist) { minDist = distYellow; choice = 2; }
-    //if (distRed    < minDist) { minDist = distRed;    choice = 3; } //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
+    //if (distRed < minDist) { minDist = distRed; choice = 3; } //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
 
     counts[choice]++;      // tally this vote
-    delay(INTERVAL_MS);
+    delay(CLASSIFY_INTERVAL);
   }
 
   // 3) pick the colour with the most votes
@@ -270,11 +310,9 @@ void loop() {
 
   // 4) print just one final result
   switch (best) {
-    case 0: Serial.println(F(">>> NO BALL"));     break;
-    case 1: Serial.println(F(">>> BLUE BALL"));   break;
-    case 2: Serial.println(F(">>> YELLOW BALL")); break;
-    case 3: Serial.println(F(">>> RED BALL"));    break;
+    case ENV: Serial.println(">>> NO BALL"); break;
+    case BLUE: Serial.println(">>> BLUE BALL"); break;
+    case YELLOW: Serial.println(">>> YELLOW BALL"); break;
+    case RED: Serial.println(">>> RED BALL"); break;
   }
-
-  // then loop() repeats, waiting for the next Enter‑key press
 }
