@@ -43,7 +43,7 @@ const unsigned long BALL_CALIB_DURATION = 2000UL; // calibrate ball duration
 const unsigned long SAMPLE_INTERVAL = 500UL; // time between samples
 
 const unsigned long VOTING_WINDOW   = 1000UL; // voting window for each ball
-const unsigned long CLASSIFY_INTERVAL = 50UL; // how long to wait between each vote
+const unsigned long VOTING_INTERVAL = 50UL; // how long to wait between each vote
 
 void light_LED();
 void remove_void_sample();
@@ -71,12 +71,7 @@ void setup() {
   light_LED();  // light up LED
 
   Serial.println("Sensor init successful.");
-
-  /*// discard first conversion -- probably 0
-  RGB_sensor.readRed();
-  RGB_sensor.readGreen();
-  RGB_sensor.readBlue();
-  delay(1000);*/
+  remove_void_sample(); // only happens once in beginning
 
   Serial.println("Starting general light intensity calibration");
   light_intensity_calibration();
@@ -127,7 +122,10 @@ void light_intensity_calibration(){
   while ((millis() - start) < INTENSITY_CALIB_DURATION) {
     light_LED(); // keep lighting up LED in case of disconnection
     
-    remove_void_sample();
+    // store raw light intensity values that sensor reads
+    r = RGB_sensor.readRed();
+    g = RGB_sensor.readGreen();
+    b = RGB_sensor.readBlue();
 
     // update min
     if (r < redMin)   redMin   = r;
@@ -163,8 +161,11 @@ void light_intensity_calibration(){
 }
 
 void sample_scaled_RGB() { // read & scale raw values from sensor into [0–255]
-  remove_void_sample();
-
+  // store raw light intensity values that sensor reads
+  r = RGB_sensor.readRed();
+  g = RGB_sensor.readGreen();
+  b = RGB_sensor.readBlue();
+  
   redScaled = map(r, redMin, redMax, 0, 255);
   greenScaled = map(g, greenMin, greenMax, 0, 255);
   blueScaled = map(b, blueMin, blueMax, 0, 255);
@@ -299,7 +300,7 @@ void classify(){
     //if (distRed < minDist) { minDist = distRed; choice = 3; } //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
 
     counts[choice]++;      // tally this vote
-    delay(CLASSIFY_INTERVAL);
+    delay(VOTING_INTERVAL);
   }
 
   // 3) pick the colour with the most votes
