@@ -24,13 +24,13 @@ void loop(){
 	//check state of limit sw
 	if(digitalRead(LIMIT_SW) == LOW){ // NO connected to COM -> GND -> pressed
 		//digitalWrite(LED, HIGH); // LED on
-		Serial.println("PRESSED"); // ball is there
+		//Serial.println("PRESSED"); // ball is there
 		
 		curr = true;
 		
 	} else { // NO connected to 5V -> unpressed (pulled up to ~5V)
 		//digitalWrite(LED, LOW); // LED off
-		Serial.println("unpressed"); // ball is not there
+		//Serial.println("unpressed"); // ball is not there
 		
 		curr = false;
 	}
