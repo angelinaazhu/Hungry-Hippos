@@ -38,7 +38,7 @@ double blueBallAvgR, blueBallAvgG, blueBallAvgB;
 double yellowBallAvgR, yellowBallAvgG, yellowBallAvgB;
 double redBallAvgR, redBallAvgG, redBallAvgB;
 
-const unsigned long INTENSITY_CALIB_DURATION = 30000UL; // calibrate light intensity duration
+const unsigned long INTENSITY_CALIB_DURATION = 10000UL; // calibrate light intensity duration
 const unsigned long BALL_CALIB_DURATION = 2000UL; // calibrate ball duration
 const unsigned long SAMPLE_INTERVAL = 500UL; // time between samples
 
