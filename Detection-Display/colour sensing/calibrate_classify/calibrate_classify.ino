@@ -2,8 +2,7 @@
 This program calibrates 2 things...
 1) light intensity: scale raw light sensor input intensity values to RGB [0,255]
 2) ball colour: gets the average scaled RGB values of different ball colours
-Then classifies
-3) TODO: create classify() to classify ball on key press
+Then classifies ball on key press
 */ 
 
 #include <Wire.h>
@@ -39,8 +38,8 @@ double blueBallAvgR, blueBallAvgG, blueBallAvgB;
 double yellowBallAvgR, yellowBallAvgG, yellowBallAvgB;
 double redBallAvgR, redBallAvgG, redBallAvgB;
 
-const unsigned long INTENSITY_CALIB_DURATION = 10000UL; // calibrate light intensity duration
-const unsigned long BALL_CALIB_DURATION = 2000UL; // calibrate ball duration
+const unsigned long INTENSITY_CALIB_DURATION = 30000UL; // calibrate light intensity duration
+const unsigned long BALL_CALIB_DURATION = 10000UL; // calibrate ball duration
 const unsigned long SAMPLE_INTERVAL = 500UL; // time between samples
 
 const unsigned long VOTING_WINDOW   = 1000UL; // voting window for each ball
@@ -144,20 +143,29 @@ void light_intensity_calibration(){
       
   Serial.println("\nLight Intensity Calibration Complete");
   
-  Serial.print("redMin = ");
-  Serial.println(redMin);
-  Serial.print("redMax = ");
-  Serial.println(redMax);
+  /* needed format
+  const unsigned int redMin = 2123;
+  const unsigned int redMax = 18226;
+  const unsigned int greenMin = 3683;
+  const unsigned int greenMax = 23122;
+  const unsigned int blueMin = 2905;
+  const unsigned int blueMax = 22361;
+  */
 
-  Serial.print("greenMin = ");
-  Serial.println(greenMin);
-  Serial.print("greenMax = ");
-  Serial.println(greenMax);
+  Serial.print("const unsigned int redMin = ");
+  Serial.print(redMin); Serial.println(";");
+  Serial.print("const unsigned int redMax = ");
+  Serial.print(redMax); Serial.println(";");
 
-  Serial.print("blueMin = ");  
-  Serial.println(blueMin);
-  Serial.print("blueMax = "); 
-  Serial.println(blueMax);
+  Serial.print("const unsigned int greenMin = ");
+  Serial.print(greenMin); Serial.println(";");
+  Serial.print("const unsigned int greenMax = ");
+  Serial.print(greenMax); Serial.println(";");
+
+  Serial.print("const unsigned int blueMin = ");  
+  Serial.print(blueMin); Serial.println(";");
+  Serial.print("const unsigned int blueMax = "); 
+  Serial.print(blueMax); Serial.println(";");
 
 }
 
@@ -204,38 +212,60 @@ void ball_colour_calibration(int colour){
   double avgG = double(sumG) / count;
   double avgB = double(sumB) / count;
 
+  /* needed format
+  const double envAvgR = 251.90, envAvgG = 246.65, envAvgB = 250.70;
+  const double blueBallAvgR = 26.00, blueBallAvgG = 112.00, blueBallAvgB = 143.00;
+  const double yellowBallAvgR = 117.10, yellowBallAvgG = 134.65, yellowBallAvgB = 142.30;
+  const double redBallAvgR = 0.00, redBallAvgG = 0.00,  redBallAvgB = 0.00;
+  */
+
   switch (colour) {
     case ENV:
       envAvgR = avgR;
       envAvgG = avgG;
       envAvgB = avgB;
-      Serial.print("ENV ");
+      Serial.print("const double ");
+      Serial.print("envAvgR = "); Serial.print(envAvgR); Serial.print(", ");
+      Serial.print("envAvgG = "); Serial.print(envAvgG); Serial.print(", ");
+      Serial.print("envAvgB = "); Serial.print(envAvgB); Serial.println(";");
       break;
     case BLUE:
       blueBallAvgR = avgR;
       blueBallAvgG = avgG;
       blueBallAvgB = avgB;
-      Serial.print("BLUE ");
+      Serial.print("const double ");
+      Serial.print("blueBallAvgR = ");
+      Serial.print(blueBallAvgR); Serial.print(", ");
+      Serial.print("blueBallAvgG = ");
+      Serial.print(blueBallAvgG); Serial.print(", ");
+      Serial.print("blueBallAvgB = ");
+      Serial.print(blueBallAvgB); Serial.println(";");
       break;
     case YELLOW:
       yellowBallAvgR = avgR;
       yellowBallAvgG = avgG;
       yellowBallAvgB = avgB;
-      Serial.print("YELLOW ");
+      Serial.print("const double ");
+      Serial.print("yellowBallAvgR = ");
+      Serial.print(yellowBallAvgR); Serial.print(", ");
+      Serial.print("yellowBallAvgG = ");
+      Serial.print(yellowBallAvgG); Serial.print(", ");
+      Serial.print("yellowBallAvgB = ");
+      Serial.print(yellowBallAvgB); Serial.println(";");
       break;
     case RED:
       redBallAvgR = avgR;
       redBallAvgG = avgG;
       redBallAvgB = avgB;
-      Serial.print("RED ");
+      Serial.print("const double ");
+      Serial.print("redBallAvgR = ");
+      Serial.print(redBallAvgR); Serial.print(", ");
+      Serial.print("redBallAvgG = ");
+      Serial.print(redBallAvgG); Serial.print(", ");
+      Serial.print("redBallAvgB = ");
+      Serial.print(redBallAvgB); Serial.println(";");
       break;
   }
-
-  Serial.print("R,G,B = ");
-  Serial.print(avgR); Serial.print(", ");
-  Serial.print(avgG); Serial.print(", ");
-  Serial.println(avgB);
-
 }
 
 void ball_colour_calibration_helper(){
@@ -272,6 +302,49 @@ void ball_colour_calibration_helper(){
 }
 
 void classify(){
-  //TODO
-  Serial.println("classify() called");
+  unsigned long start = millis();
+
+  // counts is an array, each element tallies up num votes for each ball colour
+  // counts[0] = votes for ENV -> matches macro
+  // counts[1] = votes for BLUE -> matches macro
+  // counts[2] = votes for YELLOW -> matches macro
+  // counts[3] = votes for RED -> matches macro
+  unsigned int counts[4] = { 0, 0, 0, 0 };
+
+  while ((millis() - start) < VOTING_WINDOW) {
+
+    sample_scaled_RGB();
+    // redVal is the scaled R value from sensor, and same for other colours
+    // (redVal, greenVal, blueVal) creates a sampled point in 3D space (with R,G,B axes)
+
+    // compute euclidean distance btwn sampled point and ball colour point
+    float distEnv = sqrt(sq(redVal - envAvgR) + sq(greenVal - envAvgG) + sq(blueVal - envAvgB));
+    float distBlue = sqrt(sq(redVal - blueBallAvgR) + sq(greenVal - blueBallAvgG) + sq(blueVal - blueBallAvgB));
+    float distYellow = sqrt(sq(redVal - yellowBallAvgR) + sq(greenVal - yellowBallAvgG) + sq(blueVal - yellowBallAvgB));
+    //float distRed = sq(redVal - redBallAvgR) + sq(greenVal - redBallAvgG) + sq(blueVal - redBallAvgB); //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
+
+    // pick shortest distance to be the output colour
+    float minDist = distEnv;
+    int choice = 0;  // 0=no, 1=blue, 2=yellow, 3=red
+    if (distBlue < minDist) { minDist = distBlue; choice = 1; }
+    if (distYellow < minDist) { minDist = distYellow; choice = 2; }
+    //if (distRed < minDist) { minDist = distRed; choice = 3; } //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
+
+    counts[choice]++;      // tally this vote
+    delay(VOTING_INTERVAL);
+  }
+
+  // 3) pick the colour with the most votes
+  int best = 0;
+  for (int i = 1; i < 4; i++) {
+    if (counts[i] > counts[best]) best = i;
+  }
+
+  // 4) print just one final result
+  switch (best) {
+    case ENV: Serial.println(">>> NO BALL"); break;
+    case BLUE: Serial.println(">>> BLUE BALL"); break;
+    case YELLOW: Serial.println(">>> YELLOW BALL"); break;
+    case RED: Serial.println(">>> RED BALL"); break;
+  }
 }
