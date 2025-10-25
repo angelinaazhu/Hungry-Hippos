@@ -1,3 +1,10 @@
+#include <Adafruit_GFX.h>
+#include "Adafruit_LEDBackpack.h"
+//init object
+Adafruit_7segment hex = Adafruit_7segment();
+
+// for points system
+int points = 0;
 
 /****************MOTOR GLOBAL VARS************************************/
 #include <AccelStepper.h>
@@ -74,9 +81,6 @@ const unsigned long VOTING_WINDOW   = 500UL; // voting window for each ball -> r
 const unsigned long VOTING_INTERVAL = 5UL; // how long to wait between each vote
 /*****************END OF SENSOR GLOBAL VARS***************************/
 
-// for points system
-int points = 0;
-
 void spinRevs(float revs, int dir);
 void light_LED();
 void remove_void_sample();
@@ -89,6 +93,9 @@ void setup() {
   Serial.begin(9600); // terminal baud rate
   while (!Serial);    // waits for USB serial interface object to connect
   Serial.println(" ");
+
+  hex.begin(0x70); // for hex display
+
 
   /*********************SENSOR STUFF**********************/
   // Checks if sensor is connected properly -> if not, re-wire & re-upload code
@@ -251,11 +258,31 @@ void classify(){ // code stays in this function for the VOTING_WINDOW ~= 500ms -
 }
 
 void display_points(){
-  int digit;
-  int rest = points;
-  while (rest > 0){
-    digit = rest % 10;
-    rest = rest / 10;
-  }
-  
+  int final_score = points;
+  int thousandths;
+  int hundredths;
+  int tens;
+  int ones;
+
+  ones = final_score % 10;
+  Serial.println(ones);
+  hex.writeDigitNum(4,ones);
+
+  tens = final_score % 100;
+  tens = tens /10;
+  Serial.println(tens);
+  hex.writeDigitNum(3,tens);
+
+  hundredths = final_score % 1000;
+  hundredths = hundredths /100;
+  Serial.println(hundredths);
+  hex.writeDigitNum(1,hundredths);
+
+  thousandths = final_score % 10000;
+  thousandths = thousandths /1000;
+  Serial.println(thousandths);
+  hex.writeDigitNum(0,thousandths);
+
+  hex.writeDisplay();
+
 }
