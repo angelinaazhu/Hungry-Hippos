@@ -26,7 +26,7 @@ const float TARGET_RPM = 1000.0; // revs/min NOT sure what this should be
 const float MAX_SPEED = (STEPS_PER_REV * TARGET_RPM) / 60.0;
                             // microsteps per rev * revs per min = steps per min
                             // steps per min / 60 = steps per second = speed
-const float ACCEL = 1000000000.0; // steps/s^2 NOT sure what this should be
+const float ACCEL = 10000000000.0; // steps/s^2 NOT sure what this should be
                             // chatgpt: raise if your "rig" allows -> WHAT
 const unsigned int PULSE_US = 3; // NOT sure what this should be
                             // 2–3 us for DRV8825
@@ -53,25 +53,25 @@ Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800); // LED object
 SFE_ISL29125 RGB_sensor; // colour sensor object
 
 // prev calculated min/max RGB intensity values
-const unsigned int redMin = 1628;
-const unsigned int redMax = 22906;
-const unsigned int greenMin = 2525;
-const unsigned int greenMax = 26454;
-const unsigned int blueMin = 1639;
-const unsigned int blueMax = 25221;
+const unsigned int redMin = 94;
+const unsigned int redMax = 2101;
+const unsigned int greenMin = 201;
+const unsigned int greenMax = 1035;
+const unsigned int blueMin = 131;
+const unsigned int blueMax = 1171;
 
 // prev calculated env & ball colour points
-const double envAvgR = 254.30, envAvgG = 254.65, envAvgB = 254.80;
-const double blueBallAvgR = 0.00, blueBallAvgG = 25.00, blueBallAvgB = 28.00;
-const double yellowBallAvgR = 109.65, yellowBallAvgG = 44.35, yellowBallAvgB = 30.45;
+const double envAvgR = 5.00, envAvgG = 14.00, envAvgB = 23.00;
+const double blueBallAvgR = 2.00, blueBallAvgG = 67.50, blueBallAvgB = 89.10;
+const double yellowBallAvgR = 135.05, yellowBallAvgG = 255.00, yellowBallAvgB = 199.75;
 const double redBallAvgR = 0.00, redBallAvgG = 0.00,  redBallAvgB = 0.00;
 
 unsigned int r, g, b; // raw intensity values read in directly from sensor
 int redScaled, greenScaled, blueScaled; // intermediate scaled RGB values
 int redVal, greenVal, blueVal; // clipped ver of intemediate scaled RGB values
 
-const unsigned long VOTING_WINDOW   = 500UL; // voting window for each ball
-const unsigned long VOTING_INTERVAL = 50UL; // how long to wait between each vote
+const unsigned long VOTING_WINDOW   = 500UL; // voting window for each ball -> responsible for other half of how long it takes to stop & sense
+const unsigned long VOTING_INTERVAL = 5UL; // how long to wait between each vote
 /*****************END OF SENSOR GLOBAL VARS***************************/
 
 // for points system
@@ -99,8 +99,7 @@ void setup() {
   
   // LED
   strip.begin();// init LED
-  strip.show(); // turn off all LED initially
-    // light up LED
+  light_LED();
 
   Serial.println("Sensor init successful.");
   remove_void_sample(); // only happens once in beginning
@@ -115,18 +114,20 @@ void setup() {
 
 void loop(){
   //Serial.println("spin");
-  spinRevs(1.0/4.0f, 1);   // 1/4 = spin quarter of a rev, +1 = CW
+  spinRevs(1.0/4.0f, -1);   // 1/4 = spin quarter of a rev, +1 = CW
                             // stopped after returning from this function
-  Serial.println("stop");
+  //Serial.println("exit");
 
-  delay(1); // stabilizes for half a second after stopping, then senses
-  Serial.println("calling classify()");
+  delay(100); // stabilizes for half a second after stopping, then senses -> responsible for half of how long it takes to stop & sense
+  //Serial.println("calling classify()");
   classify(); // internalyl delays for 500ms -> VOTING_WINDOW
+  //Serial.println("exited classify()");
 }
 /************************END OF SETUP & MAIN LOOP***************************/
 
 // Spin exactly rev # of revolutions (+1 CW, -1 CCW)
 void spinRevs(float revs, int dir) {
+  //Serial.println("spin start");
   long steps = (long)(revs * STEPS_PER_REV + 0.5f); // rounds to nearest int, then converts to long
                             // 1/4 rev * 12800 steps per rev = 3200 steps
   stepper.moveTo(stepper.currentPosition() + dir * steps); // declares that motor will move 3200 steps fwd/bwd
@@ -139,6 +140,7 @@ void spinRevs(float revs, int dir) {
         // as long as there are still steps left, stay in this loop
     stepper.run(); // stepper.run() executes motor steps one at a time
   } // exits when motor done spinning the 1/4th rev
+  //Serial.println("spin stop");
 }
 
 void light_LED(){
@@ -179,6 +181,7 @@ void sample_scaled_RGB() { // read & scale raw values from sensor into [0–255]
 }
 
 void classify(){ // code stays in this function for the VOTING_WINDOW ~= 500ms -> NOTE: needs to be same as delay
+  //Serial.println("called classify()");
   unsigned long start = millis();
 
   // counts is an array, each element tallies up num votes for each ball colour
@@ -244,6 +247,7 @@ void classify(){ // code stays in this function for the VOTING_WINDOW ~= 500ms -
       break;
   }
   display_points();
+  //Serial.println("end of classify()");
 }
 
 void display_points(){
