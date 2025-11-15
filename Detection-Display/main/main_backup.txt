@@ -1,0 +1,523 @@
+// #include <Wire.h>
+// #include <Adafruit_GFX.h>
+// #include "Adafruit_LEDBackpack.h"
+// #include <AccelStepper.h>
+// #include "SFE_ISL29125.h"
+// #include <Adafruit_NeoPixel.h>
+
+// #include "vars.h"
+// #include "points.h"
+// #include "countdown.h"
+// #include "spin.h"
+// #include "sensor.h"
+
+// /***********ALL VARS************/
+// //points
+// int points = 0;
+
+// //countdown
+// //actual countdown
+// unsigned long previousMillis = 0;
+// const unsigned int startSeconds = 10;  // 2 minutes
+// unsigned int remainingSeconds = startSeconds;
+
+// //mini pre game countdown
+// const unsigned int miniStartSeconds = 3; // 3, 2, 1, GO
+// unsigned int secondsUntilGo = miniStartSeconds;
+
+// //unsigned int minutes, seconds;
+// //unsigned int min10, min1, sec10, sec1;
+
+// unsigned long currentMillis;
+
+// bool start = false;
+
+// //motor
+// const int STEP_PIN   = 8;
+// const int DIR_PIN    = 9;
+// const int ENABLE_PIN = -1; // set to your EN pin, or -1 if none
+
+// // Motor & Driver configuration variables
+// const int  MOTOR_FULL_STEPS = 400; // full motor steps per revolution
+//                               // 360° per rev
+//                               // motor is 0.9° per step
+//                               // steps/rev = 360° per rev / 0.9° per step = 400
+// const int  MICROSTEPS = 32; // motor drive is rated 32 segments
+//                               //driver divides 1 full step -> 32 microsteps
+// const long STEPS_PER_REV = (long)MOTOR_FULL_STEPS * MICROSTEPS;
+//                             // driver motor microsteps per revolution
+//                             // 400 * 32 = 12800
+
+
+// // Motion targets
+// const float TARGET_RPM = 1000.0; // revs/min NOT sure what this should be
+//                             // chatgpt: try 120–240 depending on torque/supply
+//                             // amazon: max torque is 1.8 N*m
+// const float MAX_SPEED = (STEPS_PER_REV * TARGET_RPM) / 60.0;
+//                             // microsteps per rev * revs per min = steps per min
+//                             // steps per min / 60 = steps per second = speed
+// const float ACCEL = 10000000000.0; // steps/s^2 NOT sure what this should be
+//                             // chatgpt: raise if your "rig" allows -> WHAT
+// const unsigned int PULSE_US = 3; // NOT sure what this should be
+//                             // 2–3 us for DRV8825
+//                             //1–2 us for A4988
+
+
+// //sensor
+// #define LED_PIN 6   // DIN pin of LED
+// #define NUM_LEDS 2  // num of LEDs chained together
+
+// // #define ENV 0
+// // #define BLUE 1
+// // #define YELLOW 2
+// // #define RED 3
+
+// // prev calculated min/max RGB intensity values
+// const unsigned int redMin = 94;
+// const unsigned int redMax = 2101;
+// const unsigned int greenMin = 201;
+// const unsigned int greenMax = 1035;
+// const unsigned int blueMin = 131;
+// const unsigned int blueMax = 1171;
+
+// // prev calculated env & ball colour points
+// const double envAvgR = 5.00, envAvgG = 14.00, envAvgB = 23.00;
+// const double blueBallAvgR = 2.00, blueBallAvgG = 67.50, blueBallAvgB = 89.10;
+// const double yellowBallAvgR = 135.05, yellowBallAvgG = 255.00, yellowBallAvgB = 199.75;
+// //const double redBallAvgR = 0.00, redBallAvgG = 0.00,  redBallAvgB = 0.00;
+
+// //unsigned int r, g, b; // raw intensity values read in directly from sensor
+// //int redScaled, greenScaled, blueScaled; // intermediate scaled RGB values
+// //int redVal, greenVal, blueVal; // clipped ver of intemediate scaled RGB values
+
+// const unsigned long VOTING_WINDOW   = 500UL; // voting window for each ball -> responsible for other half of how long it takes to stop & sense
+// const unsigned long VOTING_INTERVAL = 5UL; // how long to wait between each vote
+// /*****************END OF ALL VARS***************/
+
+// /****************POINTS GLOBAL VARS***********************************/
+// // #include <Adafruit_GFX.h>
+// // #include "Adafruit_LEDBackpack.h"
+// // int points = 0;
+// Adafruit_7segment hex_points = Adafruit_7segment();
+
+// //void display_points();
+// /****************END OF POINTS GLOBAL VARS****************************/
+
+// /****************COUNTDOWN TIMER GLOBAL VARS**************************/
+// // //actual countdown
+// // unsigned long previousMillis = 0;
+// // const unsigned int startSeconds = 10;  // 2 minutes
+// // unsigned int remainingSeconds = startSeconds;
+
+// // //mini pre game countdown
+// // const unsigned int miniStartSeconds = 3; // 3, 2, 1, GO
+// // unsigned int secondsUntilGo = miniStartSeconds;
+
+// // unsigned int minutes, seconds;
+// // int min10, min1, sec10, sec1;
+
+// // unsigned long currentMillis;
+
+// // bool start = false;
+
+// Adafruit_7segment hex_timer = Adafruit_7segment();
+
+// // void mini_countdown();
+// // void countdown();
+// /****************END OF COUNTDOWN TIMER GLOBAL VARS*******************/
+
+// /****************MOTOR GLOBAL VARS************************************/
+// // #include <AccelStepper.h>
+
+// // Arduino I/O pins
+// // const int STEP_PIN   = 8;
+// // const int DIR_PIN    = 9;
+// // const int ENABLE_PIN = -1; // set to your EN pin, or -1 if none
+
+// // // Motor & Driver configuration variables
+// // const int  MOTOR_FULL_STEPS = 400; // full motor steps per revolution
+// //                               // 360° per rev
+// //                               // motor is 0.9° per step
+// //                               // steps/rev = 360° per rev / 0.9° per step = 400
+// // const int  MICROSTEPS = 32; // motor drive is rated 32 segments
+// //                               //driver divides 1 full step -> 32 microsteps
+// // const long STEPS_PER_REV = (long)MOTOR_FULL_STEPS * MICROSTEPS;
+// //                             // driver motor microsteps per revolution
+// //                             // 400 * 32 = 12800
+
+
+// // // Motion targets
+// // const float TARGET_RPM = 1000.0; // revs/min NOT sure what this should be
+// //                             // chatgpt: try 120–240 depending on torque/supply
+// //                             // amazon: max torque is 1.8 N*m
+// // const float MAX_SPEED = (STEPS_PER_REV * TARGET_RPM) / 60.0;
+// //                             // microsteps per rev * revs per min = steps per min
+// //                             // steps per min / 60 = steps per second = speed
+// // const float ACCEL = 10000000000.0; // steps/s^2 NOT sure what this should be
+// //                             // chatgpt: raise if your "rig" allows -> WHAT
+// // const unsigned int PULSE_US = 3; // NOT sure what this should be
+// //                             // 2–3 us for DRV8825
+// //                             //1–2 us for A4988
+
+// AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
+
+// // void spinRevs(float revs, int dir);
+// /****************END OF MOTOR GLOBAL VARS*****************************/
+
+// /****************SENSOR GLOBAL VARS*****************'******************/
+// // #include <Wire.h>
+// // #include "SFE_ISL29125.h"
+// // #include <Adafruit_NeoPixel.h>
+
+// // #define LED_PIN 6   // DIN pin of LED
+// // #define NUM_LEDS 2  // num of LEDs chained together
+
+// // #define ENV 0
+// // #define BLUE 1
+// // #define YELLOW 2
+// // #define RED 3
+
+// Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800); // LED object
+// SFE_ISL29125 RGB_sensor; // colour sensor object
+
+// // // prev calculated min/max RGB intensity values
+// // const unsigned int redMin = 94;
+// // const unsigned int redMax = 2101;
+// // const unsigned int greenMin = 201;
+// // const unsigned int greenMax = 1035;
+// // const unsigned int blueMin = 131;
+// // const unsigned int blueMax = 1171;
+
+// // // prev calculated env & ball colour points
+// // const double envAvgR = 5.00, envAvgG = 14.00, envAvgB = 23.00;
+// // const double blueBallAvgR = 2.00, blueBallAvgG = 67.50, blueBallAvgB = 89.10;
+// // const double yellowBallAvgR = 135.05, yellowBallAvgG = 255.00, yellowBallAvgB = 199.75;
+// // const double redBallAvgR = 0.00, redBallAvgG = 0.00,  redBallAvgB = 0.00;
+
+// // unsigned int r, g, b; // raw intensity values read in directly from sensor
+// // int redScaled, greenScaled, blueScaled; // intermediate scaled RGB values
+// // int redVal, greenVal, blueVal; // clipped ver of intemediate scaled RGB values
+
+// // const unsigned long VOTING_WINDOW   = 500UL; // voting window for each ball -> responsible for other half of how long it takes to stop & sense
+// // const unsigned long VOTING_INTERVAL = 5UL; // how long to wait between each vote
+
+
+// // void light_LED();
+// // void remove_void_sample();
+// // void sample_scaled_RGB();
+// // void classify();
+// /*****************END OF SENSOR GLOBAL VARS***************************/
+
+// /****************************SETUP & MAIN LOOP***************************/
+// void setup() {
+//   Serial.begin(9600); // terminal baud rate
+//   while (!Serial);    // waits for USB serial interface object to connect
+//   Serial.println(" ");
+
+//   /***************HEX STUFF*******************************/
+//   hex_points.begin(0x70); // for hex_points display
+//   hex_timer.begin(0x70); // for hex_timer display
+//   /***************END OF HEX STUFF************************/
+
+//   /*********************SENSOR STUFF**********************/
+//   // Checks if sensor is connected properly -> if not, re-wire & re-upload code
+//   if (!RGB_sensor.init()) {
+//     Serial.println("Sensor init failed! Check wiring.");
+//     while (1); // stays here
+//   }
+  
+//   // LED
+//   strip.begin();// init LED
+//   light_LED(strip);
+
+//   Serial.println("Sensor init successful.");
+//   remove_void_sample(RGB_sensor); // only happens once in beginning
+//   /***************END OF SENSOR STUFF**********************/
+
+//   /***************MOTOR STUFF******************************/
+//   stepper.setMinPulseWidth(PULSE_US);
+//   stepper.setMaxSpeed(MAX_SPEED);
+//   stepper.setAcceleration(ACCEL);
+//   /***************END OF MOTOR STUFF***********************/
+
+// }
+
+// void loop(){
+//   if (start == false){
+//     mini_countdown(hex_timer, currentMillis, previousMillis, secondsUntilGo, start);
+//   } else {
+//     countdown(hex_timer, currentMillis, previousMillis, remainingSeconds);
+//     spinRevs(1.0/4.0f, -1, stepper, STEPS_PER_REV);   // 1/4 = spin quarter of a rev, +1 = CW
+//                               //stopped after returning from this function
+//     delay(100); // stabilizes for half a second after stopping, then senses -> responsible for half of how long it takes to stop & sense
+//     classify(VOTING_WINDOW, VOTING_INTERVAL, strip, RGB_sensor, hex_points, points,
+//     envAvgR, envAvgG, envAvgB,
+//     blueBallAvgR, blueBallAvgG, blueBallAvgG,
+//     yellowBallAvgR, yellowBallAvgG, yellowBallAvgB,
+//     redMin, redMax,
+//     greenMin, greenMax,
+//     blueMin, blueMax); // internalyl delays for 500ms -> VOTING_WINDOW
+//   }
+// }
+// /************************END OF SETUP & MAIN LOOP***************************/
+
+// // Spin exactly rev # of revolutions (+1 CW, -1 CCW)
+// // void spinRevs(float revs, int dir) {
+// //   //Serial.println("spin start");
+// //   long steps = (long)(revs * STEPS_PER_REV + 0.5f); // rounds to nearest int, then converts to long
+// //                             // 1/4 rev * 12800 steps per rev = 3200 steps
+// //   stepper.moveTo(stepper.currentPosition() + dir * steps); // declares that motor will move 3200 steps fwd/bwd
+// //                             // stepper.currentPosition() is the step motor is at
+// //                             // moveTo() is new absolute target position
+// //                             // dir +1 CW = adds steps
+// //                             // dir -1 CCW = subtracts steps
+// //   while (stepper.distanceToGo() != 0) {
+// //         // distanceToGo() is num steps left to reach target
+// //         // as long as there are still steps left, stay in this loop
+// //     stepper.run(); // stepper.run() executes motor steps one at a time
+// //   } // exits when motor done spinning the 1/4th rev
+// //   //Serial.println("spin stop");
+// // }
+
+// // void light_LED(){
+// //   strip.setBrightness(255); // brightness [0-255]
+// //   strip.setPixelColor(0, strip.Color(255, 255, 255)); //LED0: R,G,B=255,255,255
+// //   strip.setPixelColor(1, strip.Color(255, 255, 255)); //LED1: R,G,B=255,255,255
+// //   strip.show(); // update LED with set brightness & colour
+// // }
+
+// // void remove_void_sample(){
+// //   // store raw light intensity values that sensor reads
+// //   r = RGB_sensor.readRed();
+// //   g = RGB_sensor.readGreen();
+// //   b = RGB_sensor.readBlue();
+
+// //   // if it’s a void startup sample (all 0s), wait 1s, try in next loop() run
+// //   while (r == 0 || g == 0 || b == 0) {
+// //     delay(1000);
+// //     r = RGB_sensor.readRed();
+// //     g = RGB_sensor.readGreen();
+// //     b = RGB_sensor.readBlue();
+// //   }
+// // }
+
+// // void sample_scaled_RGB() { // read & scale raw values from sensor into [0–255]
+// //   // store raw light intensity values that sensor reads
+// //   r = RGB_sensor.readRed();
+// //   g = RGB_sensor.readGreen();
+// //   b = RGB_sensor.readBlue();
+  
+// //   redScaled = map(r, redMin, redMax, 0, 255);
+// //   greenScaled = map(g, greenMin, greenMax, 0, 255);
+// //   blueScaled = map(b, blueMin, blueMax, 0, 255);
+
+// //   redVal = constrain(redScaled, 0, 255);
+// //   greenVal = constrain(greenScaled, 0, 255);
+// //   blueVal = constrain(blueScaled, 0, 255);
+// // }
+
+// // void classify(){ // code stays in this function for the VOTING_WINDOW ~= 500ms -> NOTE: needs to be same as delay
+// //   //Serial.println("called classify()");
+// //   unsigned long start = millis();
+
+// //   // counts is an array, each element tallies up num votes for each ball colour
+// //   // counts[0] = votes for ENV -> matches macro
+// //   // counts[1] = votes for BLUE -> matches macro
+// //   // counts[2] = votes for YELLOW -> matches macro
+// //   // counts[3] = votes for RED -> matches macro
+// //   unsigned int counts[4] = { 0, 0, 0, 0 };
+
+// //   while ((millis() - start) < VOTING_WINDOW) { 
+// //     light_LED();
+// //     sample_scaled_RGB();
+// //     // redVal is the scaled R value from sensor, and same for other colours
+// //     // (redVal, greenVal, blueVal) creates a sampled point in 3D space (with R,G,B axes)
+
+// //     // compute euclidean distance btwn sampled point and ball colour point
+// //     float distEnv = sqrt(sq(redVal - envAvgR) + sq(greenVal - envAvgG) + sq(blueVal - envAvgB));
+// //     float distBlue = sqrt(sq(redVal - blueBallAvgR) + sq(greenVal - blueBallAvgG) + sq(blueVal - blueBallAvgB));
+// //     float distYellow = sqrt(sq(redVal - yellowBallAvgR) + sq(greenVal - yellowBallAvgG) + sq(blueVal - yellowBallAvgB));
+// //     //float distRed = sq(redVal - redBallAvgR) + sq(greenVal - redBallAvgG) + sq(blueVal - redBallAvgB); //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
+
+// //     // pick shortest distance to be the output colour
+// //     float minDist = distEnv;
+// //     int choice = 0;  // 0=no, 1=blue, 2=yellow, 3=red
+// //     if (distBlue < minDist) { 
+// //       minDist = distBlue; 
+// //       choice = 1; 
+// //     }
+// //     if (distYellow < minDist) { 
+// //       minDist = distYellow; 
+// //       choice = 2; 
+// //     }
+// //     //if (distRed < minDist) { minDist = distRed; choice = 3; } //COMMENTED OUT RED CUZ I DONT HAVE RED BALL HERE
+
+// //     counts[choice]++;      // tally this vote
+// //     delay(VOTING_INTERVAL);
+// //   }
+
+// //   // 3) pick the colour with the most votes
+// //   int best = 0;
+// //   for (int i = 1; i < 4; i++) {
+// //     if (counts[i] > counts[best]) {
+// //       best = i;
+// //     }
+// //   }
+
+// //   // 4) print just one final result
+// //   switch (best) {
+// //     case ENV: 
+// //       Serial.println(">>> NO BALL"); 
+// //       break;
+// //     case BLUE: 
+// //       Serial.println(">>> BLUE BALL"); //blue ball earns 5 points
+// //       points = points + 5;
+// //       break;
+// //     case YELLOW: 
+// //       Serial.println(">>> YELLOW BALL"); //yellow ball earns 10 points
+// //       points = points + 10;
+// //       break;
+// //     case RED: 
+// //       Serial.println(">>> RED BALL"); 
+// //       points = points + 20;
+// //       break;
+// //   }
+// //   //display_points();
+// //   //Serial.println("call display_points()");
+// //   Serial.print("POINTS: ");
+// //   Serial.println(points);
+// // }
+
+// // void display_points(){
+// //   int final_score = points;
+// //   int thousandths;
+// //   int hundredths;
+// //   int tens;
+// //   int ones;
+
+// //   ones = final_score % 10;
+// //   Serial.println(ones);
+// //   hex_points.writeDigitNum(4,ones);
+
+// //   tens = final_score % 100;
+// //   tens = tens /10;
+// //   Serial.println(tens);
+// //   hex_points.writeDigitNum(3,tens);
+
+// //   hundredths = final_score % 1000;
+// //   hundredths = hundredths /100;
+// //   Serial.println(hundredths);
+// //   hex_points.writeDigitNum(1,hundredths);
+
+// //   thousandths = final_score % 10000;
+// //   thousandths = thousandths /1000;
+// //   Serial.println(thousandths);
+// //   hex_points.writeDigitNum(0,thousandths);
+
+// //   hex_points.writeDisplay();
+
+// // }
+
+// // void mini_countdown(){
+// //   //Serial.println("mini_countdown() called");
+// //   currentMillis = millis();
+
+// //   // every 1000 ms, decrement remainingSeconds (if > 0) and print
+// //   if (currentMillis - previousMillis >= 1000) {
+// //     previousMillis = currentMillis;
+    
+// //     // compute minutes and seconds
+// //     minutes = secondsUntilGo / 60;
+// //     seconds = secondsUntilGo % 60;
+
+// //     // split into tens/ones if you really want digits
+// //     min10 = minutes / 10;
+// //     min1  = minutes % 10;
+// //     sec10 = seconds / 10;
+// //     sec1  = seconds % 10;
+
+// //     //PRINT IN SERIAL
+// //     // print as mm:ss
+// //     // Serial.print(min10);
+// //     // Serial.print(min1);
+// //     // Serial.print(':');
+// //     // Serial.print(sec10);
+// //     // Serial.println(sec1);
+
+// //     //PRINT ON hex_timer
+// //     hex_timer.writeDigitNum(0, min10);
+// //     hex_timer.writeDigitNum(1, min1);
+// //     hex_timer.drawColon(true);
+// //     hex_timer.writeDigitNum(3, sec10);
+// //     hex_timer.writeDigitNum(4, sec1);
+// //     hex_timer.writeDisplay();
+
+// //     if (secondsUntilGo > 0) {
+// //       --secondsUntilGo;
+// //     } else {
+// //       start = true;
+// //       Serial.println("GAME START!");
+// //       hex_timer.writeDigitAscii(0, 71);
+// //       hex_timer.writeDigitAscii(1, 79);
+// //       hex_timer.drawColon(false);
+// //       hex_timer.writeDigitAscii(3, 79);
+// //       hex_timer.writeDigitAscii(4, 79);
+// //       hex_timer.writeDisplay();
+// //       previousMillis = millis();
+// //       return;
+// //     }
+// //   }
+// // }
+
+// // void countdown(){
+// //   //Serial.println("countdown() called");
+// //   currentMillis = millis();
+
+// //   // every 1000 ms, decrement remainingSeconds (if > 0) and print
+// //   if (currentMillis - previousMillis >= 1000) {
+// //     previousMillis = currentMillis;
+    
+// //     // compute minutes and seconds
+// //     minutes = remainingSeconds / 60;
+// //     seconds = remainingSeconds % 60;
+
+// //     // split into tens/ones if you really want digits
+// //     min10 = minutes / 10;
+// //     min1  = minutes % 10;
+// //     sec10 = seconds / 10;
+// //     sec1  = seconds % 10;
+
+// //     //PRINT IN SERIAL
+// //     // print as mm:ss
+// //     // Serial.print(min10);
+// //     // Serial.print(min1);
+// //     // Serial.print(':');
+// //     // Serial.print(sec10);
+// //     // Serial.println(sec1);
+
+// //     //PRINT ON hex_timer
+// //     hex_timer.writeDigitNum(0, min10);
+// //     hex_timer.writeDigitNum(1, min1);
+// //     hex_timer.drawColon(true);
+// //     hex_timer.writeDigitNum(3, sec10);
+// //     hex_timer.writeDigitNum(4, sec1);
+// //     hex_timer.writeDisplay();
+
+// //     if (remainingSeconds > 0) {
+// //       --remainingSeconds;
+// //     } else {
+// //       Serial.println("TIME'S UP!");
+// //       hex_timer.writeDigitAscii(0, 68);
+// //       hex_timer.writeDigitAscii(1, 79);
+// //       hex_timer.drawColon(false);
+// //       hex_timer.writeDigitAscii(3, 78);
+// //       hex_timer.writeDigitAscii(4, 69);
+// //       hex_timer.writeDisplay();
+// //       while (1) {
+// //         Serial.println("Stay here until game reset (TO IMPLEMENT)");
+// //       }
+// //     }
+  
+// //   }
+
+// // }
