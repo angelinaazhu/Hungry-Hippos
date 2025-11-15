@@ -1,10 +1,34 @@
+/****************POINTS GLOBAL VARS***********************************/
 #include <Adafruit_GFX.h>
 #include "Adafruit_LEDBackpack.h"
-//init object
-Adafruit_7segment hex = Adafruit_7segment();
-
-// for points system
 int points = 0;
+Adafruit_7segment hex_points = Adafruit_7segment();
+
+void display_points();
+/****************END OF POINTS GLOBAL VARS****************************/
+
+/****************COUNTDOWN TIMER GLOBAL VARS**************************/
+//actual countdown
+unsigned long previousMillis = 0;
+const unsigned int startSeconds = 30;  // 2 minutes
+unsigned int remainingSeconds = startSeconds;
+
+//mini pre game countdown
+const unsigned int miniStartSeconds = 3; // 3, 2, 1, GO
+unsigned int secondsUntilGo = miniStartSeconds;
+
+unsigned int minutes, seconds;
+int min10, min1, sec10, sec1;
+
+unsigned long currentMillis;
+
+bool start = false;
+
+Adafruit_7segment hex_timer = Adafruit_7segment();
+
+void mini_countdown();
+void countdown();
+/****************END OF COUNTDOWN TIMER GLOBAL VARS*******************/
 
 /****************MOTOR GLOBAL VARS************************************/
 #include <AccelStepper.h>
@@ -41,6 +65,7 @@ const unsigned int PULSE_US = 3; // NOT sure what this should be
 
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
 
+void spinRevs(float revs, int dir);
 /****************END OF MOTOR GLOBAL VARS*****************************/
 
 /****************SENSOR GLOBAL VARS*****************'******************/
@@ -79,23 +104,25 @@ int redVal, greenVal, blueVal; // clipped ver of intemediate scaled RGB values
 
 const unsigned long VOTING_WINDOW   = 500UL; // voting window for each ball -> responsible for other half of how long it takes to stop & sense
 const unsigned long VOTING_INTERVAL = 5UL; // how long to wait between each vote
-/*****************END OF SENSOR GLOBAL VARS***************************/
 
-void spinRevs(float revs, int dir);
+
 void light_LED();
 void remove_void_sample();
 void sample_scaled_RGB();
 void classify();
-void display_points();
+/*****************END OF SENSOR GLOBAL VARS***************************/
 
 /****************************SETUP & MAIN LOOP***************************/
 void setup() {
+  delay(10);
   Serial.begin(9600); // terminal baud rate
   while (!Serial);    // waits for USB serial interface object to connect
   Serial.println(" ");
 
-  hex.begin(0x70); // for hex display
-
+  /***************HEX STUFF*******************************/
+  hex_points.begin(0x70); // for hex_points display
+  hex_timer.begin(0x70); // for hex_timer display
+  /***************END OF HEX STUFF************************/
 
   /*********************SENSOR STUFF**********************/
   // Checks if sensor is connected properly -> if not, re-wire & re-upload code
@@ -117,22 +144,23 @@ void setup() {
   stepper.setMaxSpeed(MAX_SPEED);
   stepper.setAcceleration(ACCEL);
   /***************END OF MOTOR STUFF***********************/
+
 }
 
 void loop(){
-  //Serial.println("spin");
-  spinRevs(1.0/4.0f, -1);   // 1/4 = spin quarter of a rev, +1 = CW
-                            // stopped after returning from this function
-  //Serial.println("exit");
-
-  delay(100); // stabilizes for half a second after stopping, then senses -> responsible for half of how long it takes to stop & sense
-  //Serial.println("calling classify()");
-  classify(); // internalyl delays for 500ms -> VOTING_WINDOW
-  //Serial.println("exited classify()");
+  if (start == false){
+    mini_countdown();
+  } else {
+    countdown();
+    spinRevs(1.0/4.0f, -1);   // 1/4 = spin quarter of a rev, +1 = CW
+                              // stopped after returning from this function
+    delay(100); // stabilizes for half a second after stopping, then senses -> responsible for half of how long it takes to stop & sense
+    classify(); // internalyl delays for 500ms -> VOTING_WINDOW
+  }
 }
 /************************END OF SETUP & MAIN LOOP***************************/
 
-// Spin exactly rev # of revolutions (+1 CW, -1 CCW)
+//Spin exactly rev # of revolutions (+1 CW, -1 CCW)
 void spinRevs(float revs, int dir) {
   //Serial.println("spin start");
   long steps = (long)(revs * STEPS_PER_REV + 0.5f); // rounds to nearest int, then converts to long
@@ -253,8 +281,10 @@ void classify(){ // code stays in this function for the VOTING_WINDOW ~= 500ms -
       points = points + 20;
       break;
   }
-  display_points();
-  //Serial.println("end of classify()");
+  //display_points();
+  //Serial.println("call display_points()");
+  Serial.print("POINTS: ");
+  Serial.println(points);
 }
 
 void display_points(){
@@ -266,23 +296,127 @@ void display_points(){
 
   ones = final_score % 10;
   Serial.println(ones);
-  hex.writeDigitNum(4,ones);
+  hex_points.writeDigitNum(4,ones);
 
   tens = final_score % 100;
   tens = tens /10;
   Serial.println(tens);
-  hex.writeDigitNum(3,tens);
+  hex_points.writeDigitNum(3,tens);
 
   hundredths = final_score % 1000;
   hundredths = hundredths /100;
   Serial.println(hundredths);
-  hex.writeDigitNum(1,hundredths);
+  hex_points.writeDigitNum(1,hundredths);
 
   thousandths = final_score % 10000;
   thousandths = thousandths /1000;
   Serial.println(thousandths);
-  hex.writeDigitNum(0,thousandths);
+  hex_points.writeDigitNum(0,thousandths);
 
-  hex.writeDisplay();
+  hex_points.writeDisplay();
+
+}
+
+void mini_countdown(){
+  //Serial.println("mini_countdown() called");
+  currentMillis = millis();
+
+  // every 1000 ms, decrement remainingSeconds (if > 0) and print
+  if (currentMillis - previousMillis >= 1000) {
+    previousMillis = currentMillis;
+    
+    // compute minutes and seconds
+    minutes = secondsUntilGo / 60;
+    seconds = secondsUntilGo % 60;
+
+    // split into tens/ones if you really want digits
+    min10 = minutes / 10;
+    min1  = minutes % 10;
+    sec10 = seconds / 10;
+    sec1  = seconds % 10;
+
+    //PRINT IN SERIAL
+    // print as mm:ss
+    // Serial.print(min10);
+    // Serial.print(min1);
+    // Serial.print(':');
+    // Serial.print(sec10);
+    // Serial.println(sec1);
+
+    //PRINT ON hex_timer
+    hex_timer.writeDigitNum(0, min10);
+    hex_timer.writeDigitNum(1, min1);
+    hex_timer.drawColon(true);
+    hex_timer.writeDigitNum(3, sec10);
+    hex_timer.writeDigitNum(4, sec1);
+    hex_timer.writeDisplay();
+
+    if (secondsUntilGo > 0) {
+      --secondsUntilGo;
+    } else {
+      start = true;
+      Serial.println("GAME START!");
+      hex_timer.writeDigitAscii(0, 71);
+      hex_timer.writeDigitAscii(1, 79);
+      hex_timer.drawColon(false);
+      hex_timer.writeDigitAscii(3, 79);
+      hex_timer.writeDigitAscii(4, 79);
+      hex_timer.writeDisplay();
+      previousMillis = millis();
+      return;
+    }
+  }
+}
+
+void countdown(){
+  //Serial.println("countdown() called");
+  currentMillis = millis();
+
+  // every 1000 ms, decrement remainingSeconds (if > 0) and print
+  if (currentMillis - previousMillis >= 1000) {
+    previousMillis = currentMillis;
+    
+    // compute minutes and seconds
+    minutes = remainingSeconds / 60;
+    seconds = remainingSeconds % 60;
+
+    // split into tens/ones if you really want digits
+    min10 = minutes / 10;
+    min1  = minutes % 10;
+    sec10 = seconds / 10;
+    sec1  = seconds % 10;
+
+    //PRINT IN SERIAL
+    // print as mm:ss
+    // Serial.print(min10);
+    // Serial.print(min1);
+    // Serial.print(':');
+    // Serial.print(sec10);
+    // Serial.println(sec1);
+
+    //PRINT ON hex_timer
+    hex_timer.writeDigitNum(0, min10);
+    hex_timer.writeDigitNum(1, min1);
+    hex_timer.drawColon(true);
+    hex_timer.writeDigitNum(3, sec10);
+    hex_timer.writeDigitNum(4, sec1);
+    hex_timer.writeDisplay();
+
+    if (remainingSeconds > 0) {
+      --remainingSeconds;
+    } else {
+      Serial.println("TIME'S UP!");
+      hex_timer.writeDigitAscii(0, 68);
+      hex_timer.writeDigitAscii(1, 79);
+      hex_timer.drawColon(false);
+      hex_timer.writeDigitAscii(3, 78);
+      hex_timer.writeDigitAscii(4, 69);
+      hex_timer.writeDisplay();
+      while (1) {
+        Serial.println("Stay here until game reset (TO IMPLEMENT)");
+      }
+    }
+  
+  }
 
 }

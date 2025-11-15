@@ -14,7 +14,7 @@ bool motorRunning = true;
 
 void setup() {
   stepper.setMaxSpeed(7000);  // Set max speed (steps per second)
-  stepper.setSpeed(7000);     // Set continuous speed (positive = CW, negative = CCW)
+  stepper.setSpeed(-7000);     // Set continuous speed (positive = CW, negative = CCW)
 
   startTime = millis();       // Record when we started
 }
