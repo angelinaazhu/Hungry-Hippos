@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": ".",
-      "program": "build/Debug/outDebug",
+      "cwd": "c:/Users/angel/OneDrive - HUST Alumni Association of Canada/SPARK hungry hippos/Hungry-Hippos/Detection-Display/mains/main_magnonly_MULTI_i2c",
+      "program": "c:/Users/angel/OneDrive - HUST Alumni Association of Canada/SPARK hungry hippos/Hungry-Hippos/Detection-Display/mains/main_magnonly_MULTI_i2c/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
