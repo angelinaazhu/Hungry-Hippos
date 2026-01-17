@@ -8,5 +8,5 @@ void loop() {
   Serial.print("Raw analog value: ");
   Serial.println(rawValue);
 
-  delay(20);
+  delay(500);
 }

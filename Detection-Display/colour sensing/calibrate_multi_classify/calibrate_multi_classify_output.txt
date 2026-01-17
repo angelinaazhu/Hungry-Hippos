@@ -1,0 +1,53 @@
+23:15:45.083 -> Sensor init successful.
+23:15:46.067 -> Starting general light intensity calibration
+23:15:46.135 -> ***********************************************************************************************************************************************************************************************************************************************
+23:17:46.244 -> Light Intensity Calibration Complete
+23:17:46.280 -> const unsigned int redMin = 63;
+23:17:46.315 -> const unsigned int redMax = 6726;
+23:17:46.346 -> const unsigned int greenMin = 141;
+23:17:46.410 -> const unsigned int greenMax = 5307;
+23:17:46.444 -> const unsigned int blueMin = 133;
+23:17:46.477 -> const unsigned int blueMax = 6866;
+23:17:46.509 -> Starting ball colour calibration
+23:17:46.542 -> Ensure NO ball is visible. Press any key to begin NO BALL (environment) calibration
+23:17:50.735 -> Calibrating NO BALL
+23:17:50.735 -> ******************** 
+23:18:01.068 -> Place LIGHT BLUE ball in front of sensor. Press any key to begin calibration
+23:18:10.515 -> Calibrating LIGHT BLUE
+23:18:10.553 -> ******************** 
+23:18:20.855 -> Place YELLOW ball in front of sensor. Press any key to begin calibration
+23:18:39.809 -> Calibrating YELLOW
+23:18:39.855 -> ******************** 
+23:18:50.196 -> Place WHITE ball in front of sensor. Press any key to begin calibration
+23:18:57.481 -> Calibrating WHITE
+23:18:57.481 -> ******************** 
+23:19:07.827 -> Place DARK BLUE ball in front of sensor. Press any key to begin calibration
+23:19:19.342 -> Calibrating DARK BLUE
+23:19:19.342 -> ******************** 
+23:19:29.677 -> Place RED ball in front of sensor. Press any key to begin calibration
+23:19:35.029 -> Calibrating RED
+23:19:35.029 -> ******************** 
+23:19:45.359 -> Place PINK ball in front of sensor. Press any key to begin calibration
+23:19:49.987 -> Calibrating PINK
+23:19:49.987 -> ******************** 
+23:20:00.357 -> Place PURPLE ball in front of sensor. Press any key to begin calibration
+23:20:08.192 -> Calibrating PURPLE
+23:20:08.192 -> ******************** 
+23:20:18.518 -> Place GREEN ball in front of sensor. Press any key to begin calibration
+23:20:21.308 -> Calibrating GREEN
+23:20:21.308 -> ******************** 
+23:20:31.645 -> Place ORANGE ball in front of sensor. Press any key to begin calibration
+23:20:34.444 -> Calibrating ORANGE
+23:20:34.444 -> ******************** 
+23:20:44.792 -> 
+23:20:44.792 -> Calibration array (one triple per color in order):
+23:20:44.822 -> [[0.0000,0.1500,0.1000],
+23:20:44.855 -> [9.5000,70.7000,113.4500],
+23:20:44.888 -> [136.7000,137.5500,65.2500],
+23:20:44.922 -> [139.1000,204.8000,211.6500],
+23:20:44.956 -> [4.4000,23.5000,54.5000],
+23:20:44.989 -> [75.2000,14.0500,17.0500],
+23:20:45.021 -> [151.4500,107.4500,117.7000],
+23:20:45.055 -> [31.6000,31.9500,60.9500],
+23:20:45.055 -> [39.6000,120.5500,58.8000],
+23:20:45.086 -> [195.1000,89.1500,47.0500]]
