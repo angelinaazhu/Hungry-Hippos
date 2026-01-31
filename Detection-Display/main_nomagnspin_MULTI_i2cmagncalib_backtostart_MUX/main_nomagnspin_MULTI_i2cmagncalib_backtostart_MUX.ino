@@ -4,12 +4,17 @@
 #include <AccelStepper.h>
 #include "SFE_ISL29125.h"
 #include <Adafruit_NeoPixel.h>
+#include <stdlib.h>
+#include <Arduino.h>
+#include "rgb_lcd.h"
 
 #include "vars.h"
 #include "points.h"
 #include "countdown.h"
 #include "spin.h"
 #include "sensor.h"
+#include "lcd.h"
+#include "mux.h"
 
 /***********ALL VARS************/
 //GLOBAL POINT VAR
@@ -34,49 +39,50 @@ bool gameOver = false;
 #define LED_PIN 6   // DIN pin of LED
 #define NUM_LEDS 2  // num of LEDs chained together
 // prev calculated min/max RGB intensity values
-const unsigned int redMin = 63;
-const unsigned int redMax = 6726;
-const unsigned int greenMin = 141;
-const unsigned int greenMax = 5307;
-const unsigned int blueMin = 133;
-const unsigned int blueMax = 6866;
+const unsigned int redMin = 48;
+const unsigned int redMax = 4683;
+const unsigned int greenMin = 126;
+const unsigned int greenMax = 2853;
+const unsigned int blueMin = 141;
+const unsigned int blueMax = 5191;
+
 // NEW: multi-color averages from your calibration output (order matches colorNames below)
 const int NUM_COLORS = 10;
 const double colorAvgR[NUM_COLORS] = {
   0.0000,
-  9.5000,
-  136.7000,
+  5.0000,
+  221.9500,
   //139.1000,
-  4.4000,
-  75.2000,
+  2.3000,
+  102.8500,
   //151.4500,
-  31.6000,
-  39.6000,
-  195.1000
+  41.0000,
+  58.5000,
+  246.3500
 };
 const double colorAvgG[NUM_COLORS] = {
-  0.1500,
-  70.7000,
-  137.5500,
+  0.0500,
+  39.3000,
+  147.9500,
   //204.8000,
-  23.5000,
-  14.0500,
+  12.9000,
+  17.0500,
   //107.4500,
-  31.9500,
-  120.5500,
-  89.1500
+  23.4500,
+  111.5000,
+  70.2000
 };
 const double colorAvgB[NUM_COLORS] = {
-  0.1000,
-  113.4500,
-  65.2500,
+  0.0000,
+  223.3500,
+  116.6000,
   //211.6500,
-  54.5000,
-  17.0500,
+  115.4500,
+  22.6500,
   //117.7000,
-  60.9500,
-  58.8000,
-  47.0500
+  135.9500,
+  98.5000,
+  62.2500
 };
 // human-friendly names in same order as calibration
 const char* colorNames[NUM_COLORS] = {
@@ -108,8 +114,10 @@ const unsigned long VOTING_WINDOW   = 500UL;
 const unsigned long VOTING_INTERVAL = 5UL;
 
 // SPIN VARS
-const int STEP_PIN   = 8;
-const int DIR_PIN    = 9;
+const int STEPPER_STEPPIN_1   = 8;
+const int STEPPER_DIRPIN_1    = 9; //purple
+const int STEPPER_STEPPIN_2 = 10;
+const int STEPPER_DIRPIN_2 = 13; //purple
 const int ENABLE_PIN = -1;
 const int ENCODER_PIN = A0;
 const float RUN_SPEED = 2000;    // steps per second (choose what works)
@@ -118,11 +126,11 @@ const float TARGET_DELTA = 90.0; // 1/4 revolution
 // const float MAXACCEL = 10000000000000000000;
 
 //MOTOR VARS: USED FOR BLIND #STEP SPINS
-// const int STEP_PIN   = 8;
-// const int DIR_PIN    = 9;
+// const int STEPPER_STEPPIN_1   = 8;
+// const int STEPPER_DIRPIN_1    = 9;
 // const int ENABLE_PIN = -1; // set to your EN pin, or -1 if none
 
-const int  MOTOR_FULL_STEPS = 400; // full motor steps per revolution
+const int  MOTOR_FULL_STEPS = 200; // full motor steps per revolution
                               // 360° per rev
                               // motor is 0.9° per step
                               // steps/rev = 360° per rev / 0.9° per step = 400
@@ -158,15 +166,34 @@ float relAngle = 0.0; //relative to startAngle: current angle -  startAngle
 float lastCheckpointAngle = 0.0; //to keep track of when last the motor stopped spinning (completed 90)
 const float CHECKPOINT = 90.0; //checkpoint every 90 degrees
 
+// FROSTED LED VARS
+#define SENSOR2_LED1 3
+#define SENSOR2_LED2 4
 
+//MUX VARS
+const int player1 = 2; //TCA channel for player 1 (sensor 1)
+const int player2 = 5; //TCA channel for player 2 (sensor 2)
 /*****************END OF ALL VARS***************/
+
+
+/*MUX TODO:
+- add TCAsel function (DONE)
+- 2 colour sensors: instantiate 2, call everything 2x (DONE)
+- 2 magnet sensors (DONE)
+- 2 motors
+- 4 hexes (worry about this later)
+- 2 groves (didnt even integrate yet, worry about this later)
+*/
 
 //objects
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
-SFE_ISL29125 RGB_sensor;
+SFE_ISL29125 RGB_sensor1;
+SFE_ISL29125 RGB_sensor2;
 Adafruit_7segment hex_points = Adafruit_7segment();
 Adafruit_7segment hex_timer = Adafruit_7segment();
-AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
+AccelStepper stepper1(AccelStepper::DRIVER, STEPPER_STEPPIN_1, STEPPER_DIRPIN_1);
+AccelStepper stepper2(AccelStepper::DRIVER, STEPPER_STEPPIN_2, STEPPER_DIRPIN_2);
+rgb_lcd lcd;
 
 void setup() {
   delay(10);
@@ -177,37 +204,91 @@ void setup() {
 
   //initialize hex -> QUESTION: CAN THEY BOTH BE AT SAME ADDRESS?
   //hex_points.begin(0x70); // for hex_points display
+  
+  /***INITIALIZE HEX***/
   hex_timer.begin(0x70); // for hex_timer display
   
+  /***INITIALIZE RGB SENSORS***/
+  TCAsel(player1); // select 2 I2C bus for sensor 1
   //initialize RGB sensor
-  if (!RGB_sensor.init()) {
-    Serial.println("Sensor init failed! Check wiring.");
-    while (1); // stays here
+  while (!RGB_sensor1.init()) {
+    Serial.println("RGB sensor1 init failed! Check wiring.");
+    delay(100);
+  }
+
+  TCAsel(player2); // select 5 I2C bus for sensor 2
+  while (!RGB_sensor2.init()) {
+    Serial.println("RGB sensor2 init failed! Check wiring.");
+    delay(100);
   }
   
-  //initialize LED
+  /*** INITIALIZE LEDS ***/
+  Serial.println("Lighting up LEDs...");
+  //initialize LED (sensor1, way1)
   strip.begin();// init LED
   light_LED(strip);
 
-  Serial.println("Sensor init successful.");
-  remove_void_sample(RGB_sensor); // only happens once in beginning
-  
+  //initialize LED (sensor2, way2)
+  pinMode(SENSOR2_LED1, OUTPUT);
+  digitalWrite(SENSOR2_LED1, HIGH);
+  pinMode(SENSOR2_LED2, OUTPUT);
+  digitalWrite(SENSOR2_LED2, HIGH);
+
+  Serial.println("RGB sensors 1 & 2 init successful.");
+
+  /*** REMOVE VOID SAMPLES ***/
+  TCAsel(player1);
+  remove_void_sample(RGB_sensor1); // only happens once in beginning
+  TCAsel(player2);
+  remove_void_sample(RGB_sensor2); // only happens once in beginning
+
+  /*** INITIALIZE STEPPER ***/
   //initialize stepper PW, max speed, accel
-  stepper.setMinPulseWidth(PULSE_US);
-  stepper.setMaxSpeed(MAX_SPEED);
-  stepper.setAcceleration(ACCEL);
+  stepper1.setMinPulseWidth(PULSE_US);
+  stepper1.setMaxSpeed(MAX_SPEED);
+  stepper1.setAcceleration(ACCEL);
   // stepper.setMaxSpeed(MAXSPEED);   // higher than run speed
   // stepper.setAcceleration(MAXACCEL);
+    stepper2.setMinPulseWidth(PULSE_US);
+  stepper2.setMaxSpeed(MAX_SPEED);
+  stepper2.setAcceleration(ACCEL);
 
+  /*** INITIALIZE MAGNETIC SENSORS ***/
   //initialize magn i2c
   Wire.begin(); //start i2C 
   Wire.setClock(800000L); //fast clock 800kHz freq
 
-  checkMagnetPresence(); //check the magnet: wait here until magnet is found
+  /*checkMagnetPresence(); //check the magnet: wait here until magnet is found
 
   Serial.println("Welcome!"); //print a welcome message  
   Serial.println("AS5600"); //print a welcome message
-  delay(3000);
+  delay(3000);*/
+  
+  /*** CHECK AS5600 SENSORS & MAGNET ***/
+  TCAsel(player1);
+  while (!as5600Connected()) {
+    Serial.println("AS5600 sensor1 not found. Check wiring.");
+    delay(100);
+  }
+  TCAsel(player2);
+  while (!as5600Connected()) {
+    Serial.println("AS5600 sensor2 not found. Check wiring.");
+    delay(100);
+  }
+  Serial.println("AS5600 wired.");
+
+  TCAsel(player1);
+  while (!isMagnetOK()) {
+    Serial.println("Magnet1 not found.");
+    delay(100);
+  }
+  TCAsel(player2);
+  while (!isMagnetOK()) {
+    Serial.println("Magnet2 not found.");
+    delay(100);
+  }
+  Serial.println("Magnets 1 & 2 in position.");
+
   // Serial.print("start angle: ");
   // Serial.println(startAngle);
   // delay(100);
@@ -218,22 +299,45 @@ void setup() {
   relAngle = getRelativeAngle(absAngle, startAngle);
   lastCheckpointAngle = relAngle; // initialize last checkpoint angle to be relative starting angle
 
+  //initialize LCD
+  lcd.begin(16, 2);
+  lcd.setRGB(250, 250, 250);
+
+  TCAsel(1);
+  startingMessage(lcd);
+
 }
 
 void loop(){
   if (start == false){
     mini_countdown(hex_timer, currentMillis, previousMillis, secondsUntilGo, start);
+    //TCAsel(1);
+    //startingMessage(lcd);
   } else {
     gameOver = countdown(hex_timer, currentMillis, previousMillis, remainingSeconds);
     
     if (gameOver){
       //spin back to start
       //Serial.println("Spinning back to start...");
-      spinBackToZero(stepper, direction, 0.5, RUN_SPEED); // 0.5 degree tolerance
+      spinBackToZero(stepper1, direction, 0.5, RUN_SPEED); // 0.5 degree tolerance
+      //JAN31: check points1 vs points2
+            //JAN31: if points1>points2
+                   //JAN31: win(rgb_lcd& lcd1)
+                   //JAN31: loss(rgb_lcd& lcd2)
+            //JAN31: else if points2>points1
+                   //JAN31: win(rgb_lcd& lcd2)
+                   //JAN31: loss(rgb_lcd& lcd1)
       while(1){}; //stay here
       
     } else {
-      spinRevs(1.0/4.0f, direction, stepper, STEPS_PER_REV);   // 1/4 = spin quarter of a rev, +1 = CW
+      //Serial.println("spinning motor1");
+      spinRevs(1.0/4.0f, direction, stepper1, STEPS_PER_REV);
+      Serial.println("spun motor1");
+
+      //Serial.println("spinning motor2");
+      spinRevs(1.0/4.0f, direction, stepper2, STEPS_PER_REV);
+      Serial.println("spun motor2");
+         // 1/4 = spin quarter of a rev, +1 = CW
       //spinMagn(ENCODER_PIN, RUN_SPEED, TARGET_DELTA, stepper, -1); //-1 for cw
       //                           //stopped after returning from this function
       //spinMagnI2C(RUN_SPEED, TARGET_DELTA, stepper, -1, startAngle, lastCheckpointAngle);
@@ -241,7 +345,13 @@ void loop(){
 
       delay(100); // stabilizes for half a second after stopping, then senses -> responsible for half of how long it takes to stop & sense
       //checkRotated90(-1, startAngle, lastCheckpointAngle, CHECKPOINT); // TODO: NEED TO CHECK THIS LOGIC
-      classify(VOTING_WINDOW, VOTING_INTERVAL, strip, RGB_sensor, hex_points, points,
+      
+      TCAsel(player1);
+      classify(VOTING_WINDOW, VOTING_INTERVAL, strip, RGB_sensor1, player1,hex_points, points,
+        colorAvgR, colorAvgG, colorAvgB, NUM_COLORS, colorNames, pointsPerColor,
+        redMin, redMax, greenMin, greenMax, blueMin, blueMax);
+      TCAsel(player2);
+      classify(VOTING_WINDOW, VOTING_INTERVAL, strip, RGB_sensor2, player2, hex_points, points,
         colorAvgR, colorAvgG, colorAvgB, NUM_COLORS, colorNames, pointsPerColor,
         redMin, redMax, greenMin, greenMax, blueMin, blueMax);
     }

@@ -1,3 +1,18 @@
+#include "Wire.h"
+#define MUX_ADDR 0x70 //TCA9548A encoder address
+
+//helper function to help select port
+// use by doing TCAsel(0) -> TCAsel(7)
+void TCAsel(uint8_t i2c_bus){
+  if (i2c_bus > 7){
+    return;
+  }
+
+  Wire.beginTransmission (MUX_ADDR);
+  Wire.write(1 << i2c_bus);
+  Wire.endTransmission();
+}
+
 /*
 This program calibrates 2 things...
 1) light intensity: scale raw light sensor input intensity values to RGB [0,255]
@@ -18,7 +33,8 @@ Then classifies ball on key press
 #define RED 3
 
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800); // LED object
-SFE_ISL29125 RGB_sensor; // colour sensor object
+SFE_ISL29125 RGB_sensor1; // colour sensor object
+SFE_ISL29125 RGB_sensor2;
 
 unsigned int r, g, b; // raw intensity values read in directly from sensor
 int redScaled, greenScaled, blueScaled; // intermediate scaled RGB values
@@ -46,12 +62,12 @@ const unsigned long VOTING_WINDOW   = 1000UL; // voting window for each ball
 const unsigned long VOTING_INTERVAL = 50UL; // how long to wait between each vote
 
 void light_LED();
-void remove_void_sample();
-void light_intensity_calibration();
-void sample_scaled_RGB();
-void ball_colour_calibration(int colour);
-void ball_colour_calibration_helper();
-void classify();
+void remove_void_sample(SFE_ISL29125& RGB_sensor);
+void light_intensity_calibration(SFE_ISL29125& RGB_sensor);
+void sample_scaled_RGB(SFE_ISL29125& RGB_sensor);
+void ball_colour_calibration(int colour, SFE_ISL29125& RGB_sensor);
+void ball_colour_calibration_helper(SFE_ISL29125& RGB_sensor);
+void classify(SFE_ISL29125& RGB_sensor);
 
 /****************************SETUP & MAIN LOOP***************************/
 void setup() {
@@ -59,26 +75,47 @@ void setup() {
   while (!Serial);    // waits for USB serial interface object to connect
   Serial.println(" ");
 
+  TCAsel(2);
   // Checks if sensor is connected properly -> if not, re-wire & re-upload code
-  if (!RGB_sensor.init()) {
-    Serial.println("Sensor init failed! Check wiring.");
+  if (!RGB_sensor1.init()) {
+    Serial.println("Sensor1 init failed! Check wiring.");
     while (1); // stays here
   }
+
+  TCAsel(6);
+  if (!RGB_sensor2.init()) {
+    Serial.println("Sensor2 init failed! Check wiring.");
+    while (1); // stays here
+  }
+
   
   // LED
   strip.begin();// init LED
   strip.show(); // turn off all LED initially
   light_LED();  // light up LED
 
-  Serial.println("Sensor init successful.");
-  remove_void_sample(); // only happens once in beginning
+  Serial.println("SensorS init successful.");
 
-  Serial.println("Starting general light intensity calibration");
-  light_intensity_calibration();
-  
-  Serial.println("Starting ball colour calibration");
-  ball_colour_calibration_helper();
+  TCAsel(2);
+  remove_void_sample(RGB_sensor1); // only happens once in beginning
+  TCAsel(6);
+  remove_void_sample(RGB_sensor2); 
 
+  TCAsel(2);
+  Serial.println("Starting general light intensity calibration sensor1");
+  light_intensity_calibration(RGB_sensor1);
+  TCAsel(6);
+  Serial.println("Starting general light intensity calibration sensor2");
+  light_intensity_calibration(RGB_sensor2);
+
+
+TCAsel(2);
+  Serial.println("Starting ball colour calibration sensor1");
+  ball_colour_calibration_helper(RGB_sensor1);
+
+ TCAsel(6);
+   Serial.println("Starting ball colour calibration sensor2");
+  ball_colour_calibration_helper(RGB_sensor2);
 }
 
 void loop() {
@@ -88,7 +125,10 @@ void loop() {
   Serial.read();
   while (Serial.available()) { Serial.read(); }
 
-  classify();
+TCAsel(2);
+  classify(RGB_sensor1);
+   TCAsel(6);
+   classify(RGB_sensor2);
 
   // then loop() repeats, waiting for the next key press
 }
@@ -101,7 +141,7 @@ void light_LED(){
   strip.show(); // update LED with set brightness & colour
 }
 
-void remove_void_sample(){
+void remove_void_sample(SFE_ISL29125& RGB_sensor){
   // store raw light intensity values that sensor reads
   r = RGB_sensor.readRed();
   g = RGB_sensor.readGreen();
@@ -116,7 +156,7 @@ void remove_void_sample(){
   }
 }
 
-void light_intensity_calibration(){
+void light_intensity_calibration(SFE_ISL29125& RGB_sensor){
   unsigned long start = millis();
 
   while ((millis() - start) < INTENSITY_CALIB_DURATION) {
@@ -169,7 +209,7 @@ void light_intensity_calibration(){
 
 }
 
-void sample_scaled_RGB() { // read & scale raw values from sensor into [0–255]
+void sample_scaled_RGB(SFE_ISL29125& RGB_sensor) { // read & scale raw values from sensor into [0–255]
   // store raw light intensity values that sensor reads
   r = RGB_sensor.readRed();
   g = RGB_sensor.readGreen();
@@ -184,7 +224,7 @@ void sample_scaled_RGB() { // read & scale raw values from sensor into [0–255]
   blueVal = constrain(blueScaled, 0, 255);
 }
 
-void ball_colour_calibration(int colour){
+void ball_colour_calibration(int colour, SFE_ISL29125& RGB_sensor){
   // accumulate and avg the mean R, G, B values of the env & diff ball colours
   // creates a point of reference in 3D space for how to define each ball colour
   // (envAvgR, envAvgG, engAvgB), and same for ball colours
@@ -195,7 +235,7 @@ void ball_colour_calibration(int colour){
 
   while (millis() - start < BALL_CALIB_DURATION) { // while time passed < 30s
     light_LED(); // keep lighting up LED in case of disconnection
-    sample_scaled_RGB(); // red/green/blueVals all have scaled 225 vals
+    sample_scaled_RGB(RGB_sensor); // red/green/blueVals all have scaled 225 vals
 
     sumR += redVal; // accumulate
     sumG += greenVal;
@@ -268,27 +308,27 @@ void ball_colour_calibration(int colour){
   }
 }
 
-void ball_colour_calibration_helper(){
+void ball_colour_calibration_helper(SFE_ISL29125& RGB_sensor){
   // --- 1) Environment calibration ---
   Serial.println("Ensure NO ball is visible. Press any key to begin ENVIRONMENT calibration");
   while (!Serial.available());
   Serial.read();
   Serial.println("Calibrating ENVIRONMENT");
-  ball_colour_calibration(ENV);
+  ball_colour_calibration(ENV, RGB_sensor);
 
   // --- 2) BLUE Ball calibration ---
   Serial.println("Place BLUE ball in front of sensor. Press any key to begin BLUE BALL calibration");
   while (!Serial.available());
   Serial.read();
   Serial.println("Calibrating BLUE BALL");
-  ball_colour_calibration(BLUE);
+  ball_colour_calibration(BLUE, RGB_sensor);
 
   // --- 3) YELLOW Ball calibration ---
   Serial.println("Place YELLOW ball in front of sensor. Press any key to begin YELLOW BALL calibration");
   while (!Serial.available());
   Serial.read();
   Serial.println("Calibrating YELLOW BALL");
-  ball_colour_calibration(YELLOW);
+  ball_colour_calibration(YELLOW, RGB_sensor);
 
   // --- 4) RED Ball calibration ---
   /*Serial.println("Place RED ball in front of sensor. Press any key to begin RED BALL calibration");
@@ -301,7 +341,7 @@ void ball_colour_calibration_helper(){
 
 }
 
-void classify(){
+void classify(SFE_ISL29125& RGB_sensor){
   unsigned long start = millis();
 
   // counts is an array, each element tallies up num votes for each ball colour
@@ -313,7 +353,7 @@ void classify(){
 
   while ((millis() - start) < VOTING_WINDOW) {
 
-    sample_scaled_RGB();
+    sample_scaled_RGB(RGB_sensor);
     // redVal is the scaled R value from sensor, and same for other colours
     // (redVal, greenVal, blueVal) creates a sampled point in 3D space (with R,G,B axes)
 
@@ -348,3 +388,4 @@ void classify(){
     case RED: Serial.println(">>> RED BALL"); break;
   }
 }
+
