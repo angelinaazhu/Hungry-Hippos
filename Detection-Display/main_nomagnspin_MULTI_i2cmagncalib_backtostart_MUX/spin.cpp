@@ -222,7 +222,7 @@ bool checkRotated90(int direction, float startAngle, float &lastCheckpointAngle,
 //   Serial.println("Stopped.");
 // }
 
-void spinBackToZero(AccelStepper& stepper, const int DIR, const float TOLERANCE, const int RUN_SPEED) {
+void spinBackToZero(AccelStepper& stepper, const int DIR, const float TOLERANCE, const int RUN_SPEED, float startAngle) {
   Serial.println("Spinning back to relative angle = 0...");
   stepper.setSpeed(DIR * RUN_SPEED);
 
@@ -234,8 +234,8 @@ void spinBackToZero(AccelStepper& stepper, const int DIR, const float TOLERANCE,
       // Get the current absolute angle
       float absAngle = getAbsAngle();
 
-      // Calculate the relative angle (relative to the starting position)
-      float relAngle = getRelativeAngle(absAngle, 0); // Target relAngle = 0
+      // Calculate the relative angle (relative to the original starting position)
+      float relAngle = getRelativeAngle(absAngle, startAngle);
 
       // Print debug logs only once every second
       unsigned long currentTime = millis();
@@ -250,7 +250,7 @@ void spinBackToZero(AccelStepper& stepper, const int DIR, const float TOLERANCE,
       // Check if the motor is within the tolerance of relAngle = 0
       if (abs(relAngle) <= TOLERANCE) {
           absAngle = getAbsAngle();
-          relAngle = getRelativeAngle(absAngle, 0);
+          relAngle = getRelativeAngle(absAngle, startAngle);
           
           Serial.print("Ending angle:");
           Serial.println(relAngle);
