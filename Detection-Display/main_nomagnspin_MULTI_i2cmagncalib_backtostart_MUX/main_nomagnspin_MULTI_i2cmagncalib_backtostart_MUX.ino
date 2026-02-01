@@ -22,7 +22,7 @@ int points = 0;
 
 //COUNTDOWN VARS
 //actual countdown
-const unsigned int startSeconds = 3000;  // 2 minutes
+const unsigned int startSeconds = 300;  // 2 minutes (3000 s)
 unsigned int remainingSeconds = startSeconds;
 
 //mini pre game countdown
@@ -146,7 +146,7 @@ const float TARGET_RPM = 1000.0; // revs/min NOT sure what this should be
 const float MAX_SPEED = (STEPS_PER_REV * TARGET_RPM) / 60.0;
                             // microsteps per rev * revs per min = steps per min
                             // steps per min / 60 = steps per second = speed
-const float ACCEL = 10000000000.0; // steps/s^2 NOT sure what this should be
+const float ACCEL = 2500.0; // steps/s^2 NOT sure what this should be
                             // chatgpt: raise if your "rig" allows -> WHAT
 const unsigned int PULSE_US = 3; // NOT sure what this should be
                             // 2–3 us for DRV8825
@@ -160,10 +160,15 @@ const int direction = -1; //ccw = -1, cw = 1
 int lowbyte; //raw angle 7:0
 word highbyte; //raw angle 7:0 and 11:8
 int rawAngle; //final raw angle number (0-4095)
-float absAngle; //raw angle in degrees (360/4096 * [value between 0-4095])
-float startAngle = 0.0; //starting angle
-float relAngle = 0.0; //relative to startAngle: current angle -  startAngle 
-float lastCheckpointAngle = 0.0; //to keep track of when last the motor stopped spinning (completed 90)
+float absAngle_1; //raw angle in degrees (360/4096 * [value between 0-4095])
+float startAngle_1 = 0.0; //starting angle
+float relAngle_1 = 0.0; //relative to startAngle_1: current angle -  startAngle_1 
+float lastCheckpointAngle_1 = 0.0; //to keep track of when last the motor stopped spinning (completed 90)
+
+float absAngle_2; //raw angle in degrees (360/4096 * [value between 0-4095])
+float startAngle_2 = 0.0; //starting angle
+float relAngle_2 = 0.0; //relative to startAngle_1: current angle -  startAngle_1 
+float lastCheckpointAngle_2 = 0.0; //to keep track of when last the motor 
 const float CHECKPOINT = 90.0; //checkpoint every 90 degrees
 
 // FROSTED LED VARS
@@ -196,7 +201,7 @@ AccelStepper stepper2(AccelStepper::DRIVER, STEPPER_STEPPIN_2, STEPPER_DIRPIN_2)
 rgb_lcd lcd;
 
 void setup() {
-  delay(10);
+  delay(100);
   //initialize serial
   Serial.begin(9600); // terminal baud rate
   while (!Serial);    // waits for USB serial interface object to connect
@@ -249,7 +254,7 @@ void setup() {
   stepper1.setAcceleration(ACCEL);
   // stepper.setMaxSpeed(MAXSPEED);   // higher than run speed
   // stepper.setAcceleration(MAXACCEL);
-    stepper2.setMinPulseWidth(PULSE_US);
+  stepper2.setMinPulseWidth(PULSE_US);
   stepper2.setMaxSpeed(MAX_SPEED);
   stepper2.setAcceleration(ACCEL);
 
@@ -289,37 +294,53 @@ void setup() {
   }
   Serial.println("Magnets 1 & 2 in position.");
 
-  // Serial.print("start angle: ");
-  // Serial.println(startAngle);
-  // delay(100);
+  Serial.print("start angle: ");
+  Serial.println(startAngle_1);
+  delay(100);
 
+  TCAsel(player1);
   //reads current angle again to set checkpoint for 90 degree rotation detection
-  absAngle = getAbsAngle();
-  startAngle = absAngle;
-  relAngle = getRelativeAngle(absAngle, startAngle);
-  lastCheckpointAngle = relAngle; // initialize last checkpoint angle to be relative starting angle
+  absAngle_1 = getAbsAngle();
+  startAngle_1 = absAngle_1;
+  relAngle_1 = getRelativeAngle(absAngle_1, startAngle_1);
+  lastCheckpointAngle_1 = relAngle_1; // initialize last checkpoint angle to be relative starting angle
+
+  TCAsel(player2);
+  //reads current angle again to set checkpoint for 90 degree rotation detection
+  absAngle_2 = getAbsAngle();
+  startAngle_2 = absAngle_2;
+  relAngle_2 = getRelativeAngle(absAngle_2, startAngle_2);
+  lastCheckpointAngle_2 = relAngle_2; // initialize last checkpoint angle to be relative starting angle
+
 
   //initialize LCD
+  TCAsel(player1);
   lcd.begin(16, 2);
   lcd.setRGB(250, 250, 250);
 
-  TCAsel(1);
-  startingMessage(lcd);
+  // TCAsel(player1);
+  // startingMessage(lcd);
 
 }
 
 void loop(){
   if (start == false){
-    mini_countdown(hex_timer, currentMillis, previousMillis, secondsUntilGo, start);
-    //TCAsel(1);
-    //startingMessage(lcd);
+    //mini_countdown(hex_timer, currentMillis, previousMillis, secondsUntilGo, start);
+    TCAsel(player1);
+    start = startingMessage(lcd);
   } else {
     gameOver = countdown(hex_timer, currentMillis, previousMillis, remainingSeconds);
-    
+      
     if (gameOver){
+      TCAsel(player1);
+      coolDownMsg(lcd);
+      
       //spin back to start
-      //Serial.println("Spinning back to start...");
-      spinBackToZero(stepper1, direction, 0.5, RUN_SPEED); // 0.5 degree tolerance
+      Serial.println("Spinning back to start...");
+      TCAsel(player1);
+      spinBackToZero(stepper1, direction, 0.5, RUN_SPEED, startAngle_1); // 0.5 degree tolerance
+      TCAsel(player2);
+      spinBackToZero(stepper2, direction, 0.5, RUN_SPEED, startAngle_2); // 0.5 degree tolerance
       //JAN31: check points1 vs points2
             //JAN31: if points1>points2
                    //JAN31: win(rgb_lcd& lcd1)
@@ -330,6 +351,10 @@ void loop(){
       while(1){}; //stay here
       
     } else {
+      //Serial.println("Displaying game screen");
+      TCAsel(player1);
+      gameScreen(lcd);
+
       //Serial.println("spinning motor1");
       spinRevs(1.0/4.0f, direction, stepper1, STEPS_PER_REV);
       Serial.println("spun motor1");
@@ -340,11 +365,11 @@ void loop(){
          // 1/4 = spin quarter of a rev, +1 = CW
       //spinMagn(ENCODER_PIN, RUN_SPEED, TARGET_DELTA, stepper, -1); //-1 for cw
       //                           //stopped after returning from this function
-      //spinMagnI2C(RUN_SPEED, TARGET_DELTA, stepper, -1, startAngle, lastCheckpointAngle);
+      //spinMagnI2C(RUN_SPEED, TARGET_DELTA, stepper, -1, startAngle_1, lastCheckpointAngle_1);
 
 
       delay(100); // stabilizes for half a second after stopping, then senses -> responsible for half of how long it takes to stop & sense
-      //checkRotated90(-1, startAngle, lastCheckpointAngle, CHECKPOINT); // TODO: NEED TO CHECK THIS LOGIC
+      //checkRotated90(-1, startAngle_1, lastCheckpointAngle_1, CHECKPOINT); // TODO: NEED TO CHECK THIS LOGIC
       
       TCAsel(player1);
       classify(VOTING_WINDOW, VOTING_INTERVAL, strip, RGB_sensor1, player1,hex_points, points,

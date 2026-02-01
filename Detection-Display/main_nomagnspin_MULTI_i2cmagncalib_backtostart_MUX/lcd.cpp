@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include "rgb_lcd.h"
 
-void startingMessage(rgb_lcd& lcd) {
-  Serial.println("startingMessage called");
+bool startingMessage(rgb_lcd& lcd) {
+  //Serial.println("startingMessage called");
   
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -37,6 +37,40 @@ void startingMessage(rgb_lcd& lcd) {
   lcd.setCursor(0, 0);
   lcd.print("GO!");
 
-  delay(1000);
+  return true;
   
+}
+
+
+void gameScreen(rgb_lcd& lcd){
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  //delay(500);
+
+  lcd.setCursor(0,1);
+  lcd.print("Points");
+
+  // lcd.setCursor(8,0);
+  // lcd.print("|");
+  lcd.setCursor(8,1);
+  lcd.print("|");
+
+  lcd.setCursor(12,1);
+  lcd.print("Time");
+
+  // lcd.setCursor(0,1);
+  // lcd.print("V"); 
+
+  // lcd.setCursor(15,1);
+  // lcd.print("V");
+
+}
+
+void coolDownMsg(rgb_lcd& lcd) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Counting Points");
+
+  lcd.setCursor(8, 1);
+  lcd.print("...");
 }

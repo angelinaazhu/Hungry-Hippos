@@ -13,4 +13,4 @@ float getAbsAngle();
 float getRelativeAngle(float absAngle, float startAngle);
 bool checkRotated90(int direction, float startAngle, float &lastCheckpointAngle, float CHECKPOINT);
 //void spinMagnI2C(const int RUN_SPEED, const int TARGET_DELTA, AccelStepper& stepper, const int DIR, const float startAngle, float &lastCheckpointAngle);
-void spinBackToZero(AccelStepper& stepper, const int DIR, const float TOLERANCE, const int RUN_SPEED);
+void spinBackToZero(AccelStepper& stepper, const int DIR, const float TOLERANCE, const int RUN_SPEED, float startAngle);
