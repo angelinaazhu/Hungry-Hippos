@@ -5,6 +5,9 @@ This program calibrates 2 things...
 Then classifies ball on key press
 */ 
 
+#define SENSOR2_LED1 3
+#define SENSOR2_LED2 4
+
 #include <Wire.h>
 #include "SFE_ISL29125.h"
 #include <Adafruit_NeoPixel.h>
@@ -16,6 +19,21 @@ Then classifies ball on key press
 #define BLUE 1
 #define YELLOW 2
 #define RED 3
+
+#include "Wire.h"
+#define MUX_ADDR 0x70 //TCA9548A encoder address
+
+//helper function to help select port
+// use by doing TCAsel(0) -> TCAsel(7)
+void TCAsel(uint8_t i2c_bus){
+  if (i2c_bus > 7){
+    return;
+  }
+
+  Wire.beginTransmission (MUX_ADDR);
+  Wire.write(1 << i2c_bus);
+  Wire.endTransmission();
+}
 
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800); // LED object
 SFE_ISL29125 RGB_sensor; // colour sensor object
@@ -59,6 +77,8 @@ void setup() {
   while (!Serial);    // waits for USB serial interface object to connect
   Serial.println(" ");
 
+    TCAsel(2);
+
   // Checks if sensor is connected properly -> if not, re-wire & re-upload code
   if (!RGB_sensor.init()) {
     Serial.println("Sensor init failed! Check wiring.");
@@ -69,6 +89,11 @@ void setup() {
   strip.begin();// init LED
   strip.show(); // turn off all LED initially
   light_LED();  // light up LED
+
+    pinMode(SENSOR2_LED1, OUTPUT);
+  digitalWrite(SENSOR2_LED1, HIGH);
+  pinMode(SENSOR2_LED2, OUTPUT);
+  digitalWrite(SENSOR2_LED2, HIGH);
 
   Serial.println("Sensor init successful.");
   remove_void_sample(); // only happens once in beginning
