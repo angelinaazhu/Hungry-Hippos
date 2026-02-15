@@ -2,6 +2,21 @@
 #include <Adafruit_GFX.h>
 #include "Adafruit_LEDBackpack.h"
 
+// #include "Wire.h"
+// #define MUX_ADDR 0x70 //TCA9548A encoder address
+
+// //helper function to help select port
+// // use by doing TCAsel(0) -> TCAsel(7)
+// void TCAsel(uint8_t i2c_bus){
+//   if (i2c_bus > 7){
+//     return;
+//   }
+
+//   Wire.beginTransmission (MUX_ADDR);
+//   Wire.write(1 << i2c_bus);
+//   Wire.endTransmission();
+// }
+
 Adafruit_7segment hex_timer = Adafruit_7segment();
 
 //actual countdown
@@ -27,7 +42,10 @@ void countdown();
 void setup() {
   delay(2000); // 1000 makes it glitch a little at 3, 2000 makes it glitch at prev -> probably doesnt matter because there's going to be a startup time
   Serial.begin(9600);
-  hex_timer.begin(0x70);
+
+ // TCAsel(2);
+
+  hex_timer.begin(0x73);
 }
 
 void loop() {

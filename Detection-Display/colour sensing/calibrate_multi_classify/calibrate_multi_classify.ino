@@ -12,6 +12,24 @@ Then classifies ball on key press
 #define LED_PIN 6   // DIN pin of LED
 #define NUM_LEDS 2  // num of LEDs chained together
 
+
+#define SENSOR2_LED1 3
+#define SENSOR2_LED2 4
+
+#include "Wire.h"
+#define MUX_ADDR 0x70 //TCA9548A encoder address
+
+//helper function to help select port
+// use by doing TCAsel(0) -> TCAsel(7)
+void TCAsel(uint8_t i2c_bus){
+  if (i2c_bus > 7){
+    return;
+  }
+
+  Wire.beginTransmission (MUX_ADDR);
+  Wire.write(1 << i2c_bus);
+  Wire.endTransmission();
+}
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800); // LED object
 SFE_ISL29125 RGB_sensor; // colour sensor object
 
@@ -51,7 +69,7 @@ const char* codeNames[NUM_COLORS] = {
   "red", "pink", "purple", "green", "orange"
 };
 
-const unsigned long INTENSITY_CALIB_DURATION = 120000UL; // calibrate light intensity duration
+const unsigned long INTENSITY_CALIB_DURATION = 10000UL; // calibrate light intensity duration
 const unsigned long BALL_CALIB_DURATION = 10000UL; // calibrate ball duration
 const unsigned long SAMPLE_INTERVAL = 500UL; // time between samples
 
@@ -72,6 +90,7 @@ void setup() {
   while (!Serial);    // waits for USB serial interface object to connect
   Serial.println(" ");
 
+  TCAsel(2);
   // Checks if sensor is connected properly -> if not, re-wire & re-upload code
   if (!RGB_sensor.init()) {
     Serial.println("Sensor init failed! Check wiring.");
@@ -82,6 +101,8 @@ void setup() {
   strip.begin();// init LED
   strip.show(); // turn off all LED initially
   light_LED();  // light up LED
+
+
 
   Serial.println("Sensor init successful.");
   remove_void_sample(); // only happens once in beginning

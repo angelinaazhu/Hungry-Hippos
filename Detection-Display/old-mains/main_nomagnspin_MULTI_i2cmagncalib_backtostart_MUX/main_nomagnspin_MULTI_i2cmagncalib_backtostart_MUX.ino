@@ -22,7 +22,7 @@ int points = 0;
 
 //COUNTDOWN VARS
 //actual countdown
-const unsigned int startSeconds = 300;  // 2 minutes (3000 s)
+const unsigned int startSeconds = 3000;  // 2 minutes (3000 s)
 unsigned int remainingSeconds = startSeconds;
 
 //mini pre game countdown
@@ -39,50 +39,50 @@ bool gameOver = false;
 #define LED_PIN 6   // DIN pin of LED
 #define NUM_LEDS 2  // num of LEDs chained together
 // prev calculated min/max RGB intensity values
-const unsigned int redMin = 48;
-const unsigned int redMax = 4683;
-const unsigned int greenMin = 126;
-const unsigned int greenMax = 2853;
-const unsigned int blueMin = 141;
-const unsigned int blueMax = 5191;
+const unsigned int redMin = 438;
+const unsigned int redMax = 8152;
+const unsigned int greenMin = 1630;
+const unsigned int greenMax = 9415;
+const unsigned int blueMin = 1368;
+const unsigned int blueMax = 9761;
 
 // NEW: multi-color averages from your calibration output (order matches colorNames below)
-const int NUM_COLORS = 10;
+const int NUM_COLORS = 8;
 const double colorAvgR[NUM_COLORS] = {
-  0.0000,
-  5.0000,
-  221.9500,
-  //139.1000,
   2.3000,
-  102.8500,
-  //151.4500,
-  41.0000,
-  58.5000,
-  246.3500
+  14.4000,
+  132.0500,
+  //165.2500
+  11.6000,
+  58.1500,
+  //168.4000,
+  36.8000,
+  43.3500,
+  239.9500
 };
 const double colorAvgG[NUM_COLORS] = {
-  0.0500,
-  39.3000,
-  147.9500,
-  //204.8000,
-  12.9000,
-  17.0500,
-  //107.4500,
-  23.4500,
-  111.5000,
-  70.2000
+  2.8500,
+  47.7000,
+  162.2000,
+  //254.8500,
+  21.7000,
+  25.3500,
+  //136.3000,
+  36.7500,
+  110.5000,
+  124.4500
 };
 const double colorAvgB[NUM_COLORS] = {
-  0.0000,
-  223.3500,
-  116.6000,
-  //211.6500,
-  115.4500,
-  22.6500,
-  //117.7000,
-  135.9500,
-  98.5000,
-  62.2500
+  1.9000,
+  109.5500,
+  46.5500,
+  //255.0000,
+  76.6500,
+  14.6000,
+  //158.9500,
+  95.8500,
+  41.9000,
+  40.6500
 };
 // human-friendly names in same order as calibration
 const char* colorNames[NUM_COLORS] = {
@@ -104,7 +104,7 @@ const int pointsPerColor[NUM_COLORS] = {
   5,
   //5,
   5,
-  -10,
+  -5,
   //5,
   5,
   10,
@@ -140,7 +140,7 @@ const long STEPS_PER_REV = (long)MOTOR_FULL_STEPS * MICROSTEPS;
                             // driver motor microsteps per revolution
                             // 400 * 32 = 12800
 
-const float TARGET_RPM = 1000.0; // revs/min NOT sure what this should be
+const float TARGET_RPM = 500.0; // revs/min NOT sure what this should be
                             // chatgpt: try 120–240 depending on torque/supply
                             // amazon: max torque is 1.8 N*m
 const float MAX_SPEED = (STEPS_PER_REV * TARGET_RPM) / 60.0;
@@ -329,6 +329,7 @@ void loop(){
     TCAsel(player1);
     start = startingMessage(lcd);
   } else {
+    TCAsel(0);
     gameOver = countdown(hex_timer, currentMillis, previousMillis, remainingSeconds);
       
     if (gameOver){
@@ -357,11 +358,11 @@ void loop(){
 
       //Serial.println("spinning motor1");
       spinRevs(1.0/4.0f, direction, stepper1, STEPS_PER_REV);
-      Serial.println("spun motor1");
+      //Serial.println("spun motor1");
 
       //Serial.println("spinning motor2");
       spinRevs(1.0/4.0f, direction, stepper2, STEPS_PER_REV);
-      Serial.println("spun motor2");
+      //Serial.println("spun motor2");
          // 1/4 = spin quarter of a rev, +1 = CW
       //spinMagn(ENCODER_PIN, RUN_SPEED, TARGET_DELTA, stepper, -1); //-1 for cw
       //                           //stopped after returning from this function
