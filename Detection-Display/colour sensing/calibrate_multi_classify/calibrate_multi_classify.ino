@@ -69,7 +69,7 @@ const char* codeNames[NUM_COLORS] = {
   "red", "pink", "purple", "green", "orange"
 };
 
-const unsigned long INTENSITY_CALIB_DURATION = 10000UL; // calibrate light intensity duration
+const unsigned long INTENSITY_CALIB_DURATION = 60000UL; // calibrate light intensity duration
 const unsigned long BALL_CALIB_DURATION = 10000UL; // calibrate ball duration
 const unsigned long SAMPLE_INTERVAL = 500UL; // time between samples
 
@@ -90,7 +90,7 @@ void setup() {
   while (!Serial);    // waits for USB serial interface object to connect
   Serial.println(" ");
 
-  TCAsel(2);
+  TCAsel(7);
   // Checks if sensor is connected properly -> if not, re-wire & re-upload code
   if (!RGB_sensor.init()) {
     Serial.println("Sensor init failed! Check wiring.");
@@ -137,6 +137,7 @@ void light_LED(){
 
 void remove_void_sample(){
   // store raw light intensity values that sensor reads
+  TCAsel(7);
   r = RGB_sensor.readRed();
   g = RGB_sensor.readGreen();
   b = RGB_sensor.readBlue();
@@ -144,6 +145,7 @@ void remove_void_sample(){
   // if it’s a void startup sample (all 0s), wait 1s, try in next loop() run
   while (r == 0 || g == 0 || b == 0) {
     delay(1000);
+    TCAsel(7);
     r = RGB_sensor.readRed();
     g = RGB_sensor.readGreen();
     b = RGB_sensor.readBlue();
@@ -157,6 +159,7 @@ void light_intensity_calibration(){
     light_LED(); // keep lighting up LED in case of disconnection
     
     // store raw light intensity values that sensor reads
+    TCAsel(7);
     r = RGB_sensor.readRed();
     g = RGB_sensor.readGreen();
     b = RGB_sensor.readBlue();
@@ -196,6 +199,7 @@ void light_intensity_calibration(){
 
 void sample_scaled_RGB() { // read & scale raw values from sensor into [0–255]
   // store raw light intensity values that sensor reads
+  TCAsel(7);
   r = RGB_sensor.readRed();
   g = RGB_sensor.readGreen();
   b = RGB_sensor.readBlue();
@@ -207,6 +211,11 @@ void sample_scaled_RGB() { // read & scale raw values from sensor into [0–255]
   redVal = constrain(redScaled, 0, 255);
   greenVal = constrain(greenScaled, 0, 255);
   blueVal = constrain(blueScaled, 0, 255);
+
+  Serial.print("Raw: ");
+  Serial.print(r); Serial.print(" ");
+  Serial.print(g); Serial.print(" ");
+  Serial.println(b);
 }
 
 void ball_colour_calibration(int idx){

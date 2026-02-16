@@ -18,11 +18,12 @@
 
 /***********ALL VARS************/
 //GLOBAL POINT VAR
-int points = 0;
+int points1 = 0; //player1 points
+int points2 = 0; //player2 pooints
 
 //COUNTDOWN VARS
 //actual countdown
-const unsigned int startSeconds = 30;  // 2 minutes (3000 s)
+const unsigned int startSeconds = 20;  // 2 minutes (3000 s)
 unsigned int remainingSeconds = startSeconds;
 
 //mini pre game countdown
@@ -41,51 +42,99 @@ bool gameOver = false;
 const unsigned int led_pin1 = 6;
 const unsigned int led_pin2 = 7; // change later
 // prev calculated min/max RGB intensity values
-const unsigned int redMin = 438;
-const unsigned int redMax = 8152;
-const unsigned int greenMin = 1630;
-const unsigned int greenMax = 9415;
-const unsigned int blueMin = 1368;
-const unsigned int blueMax = 9761;
+const unsigned int redMin_1 = 39;
+const unsigned int redMax_1 = 1221;
+const unsigned int greenMin_1 = 195;
+const unsigned int greenMax_1 = 1097;
+const unsigned int blueMin_1 = 72;
+const unsigned int blueMax_1 = 998;
+
+const unsigned int redMin_2 = 24;
+const unsigned int redMax_2 = 781;
+const unsigned int greenMin_2 = 57;
+const unsigned int greenMax_2 = 1862;
+const unsigned int blueMin_2 = 42;
+const unsigned int blueMax_2 = 735;
 
 // NEW: multi-color averages from your calibration output (order matches colorNames below)
 const int NUM_COLORS = 8;
-const double colorAvgR[NUM_COLORS] = {
-  2.3000,
-  14.4000,
-  132.0500,
-  //165.2500
-  11.6000,
-  58.1500,
-  //168.4000,
-  36.8000,
-  43.3500,
-  239.9500
+
+//sensor1
+const double colorAvgR_1[NUM_COLORS] = {
+  5.0000,
+ 18.0000,
+  130.9000,
+  //132.9000
+  11.3000,
+  57.0000,
+  //159.2000,
+  37.0000,
+  48.0000,
+  239.0000
 };
-const double colorAvgG[NUM_COLORS] = {
-  2.8500,
-  47.7000,
-  162.2000,
-  //254.8500,
-  21.7000,
-  25.3500,
-  //136.3000,
-  36.7500,
-  110.5000,
-  124.4500
+const double colorAvgG_1[NUM_COLORS] = {
+  19.0000,
+  81.0000,
+  203.5000,
+  //253.4500,
+  39.1500,
+  47.1000,
+  //173.8500,
+  61.9000,
+  144.0000,
+  169.0000
 };
-const double colorAvgB[NUM_COLORS] = {
-  1.9000,
-  109.5500,
-  46.5500,
+const double colorAvgB_1[NUM_COLORS] = {
+  17.0000,
+  161.2500,
+  94.3000,
+  //254.0500,
+  88.0000,
+  39.0000,
+  //196.4500,
+  114.0000,
+  83.0000,
+  93.0000
+};
+
+//sensor2
+const double colorAvgR_2[NUM_COLORS] = {
+  7.0000,
+ 25.0000,
+  232.5500,
+  //219.5500
+  19.0500,
+  66.2000,
+  //206.7500
+ 46.3000,
+  75.8000,
+  245.2000
+};
+const double colorAvgG_2[NUM_COLORS] = {
+  11.0000,
+  78.7500,
+  240.0000,
   //255.0000,
-  76.6500,
-  14.6000,
-  //158.9500,
-  95.8500,
-  41.9000,
-  40.6500
+  36.0000,
+  25.0000,
+  //146.3500,
+  47.8000,
+  156.9000,
+  112.6500
 };
+const double colorAvgB_2[NUM_COLORS] = {
+  8.0000,
+ 161.3500,
+  104.0000,
+  //255.0000,
+  86.1000,
+  19.0000,
+  //175.6500,
+ 95.3000,
+  81.5500,
+  63.7500
+};
+
 // human-friendly names in same order as calibration
 const char* colorNames[NUM_COLORS] = {
   "NO BALL",
@@ -118,8 +167,8 @@ const unsigned long VOTING_INTERVAL = 5UL;
 // SPIN VARS
 const int STEPPER_STEPPIN_1   = 8;
 const int STEPPER_DIRPIN_1    = 9; //purple
-const int STEPPER_STEPPIN_2 = 10;
-const int STEPPER_DIRPIN_2 = 13; //purple
+const int STEPPER_STEPPIN_2 = 11;
+const int STEPPER_DIRPIN_2 = 12; //purple
 const int ENABLE_PIN = -1;
 const int ENCODER_PIN = A0;
 const float RUN_SPEED = 2000;    // steps per second (choose what works)
@@ -177,8 +226,8 @@ const float CHECKPOINT = 90.0; //checkpoint every 90 degrees
 // #define SENSOR2_LED2 4
 
 //MUX VARS
-const int player1 = 2; //TCA channel for player 1 (sensor 1)
-const int player2 = 5; //TCA channel for player 2 (sensor 2)
+const int player1 = 3; //TCA channel for player 1 (sensor 1)
+const int player2 = 7; //TCA channel for player 2 (sensor 2)
 /*****************END OF ALL VARS***************/
 
 
@@ -195,10 +244,12 @@ const int player2 = 5; //TCA channel for player 2 (sensor 2)
 //Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 SFE_ISL29125 RGB_sensor1;
 SFE_ISL29125 RGB_sensor2;
-Adafruit_7segment hex_points = Adafruit_7segment();
-Adafruit_7segment hex_timer = Adafruit_7segment();
-AccelStepper stepper1(AccelStepper::DRIVER, STEPPER_STEPPIN_1, STEPPER_DIRPIN_1);
-AccelStepper stepper2(AccelStepper::DRIVER, STEPPER_STEPPIN_2, STEPPER_DIRPIN_2);
+Adafruit_7segment hex_points1 = Adafruit_7segment();
+Adafruit_7segment hex_timer1 = Adafruit_7segment();
+Adafruit_7segment hex_points2 = Adafruit_7segment();
+Adafruit_7segment hex_timer2 = Adafruit_7segment();
+AccelStepper stepper1(AccelStepper::DRIVER, STEPPER_STEPPIN_2, STEPPER_DIRPIN_2);
+AccelStepper stepper2(AccelStepper::DRIVER, STEPPER_STEPPIN_1, STEPPER_DIRPIN_1);
 rgb_lcd lcd;
 
 void setup() {
@@ -212,7 +263,10 @@ void setup() {
   //hex_points.begin(0x70); // for hex_points display
   
   /***INITIALIZE HEX***/
-  hex_timer.begin(0x73); // for hex_timer display
+  hex_timer1.begin(0x71); // for hex_timer1 display
+  hex_points1.begin(0x72); // for hex_timer2 display
+  hex_timer2.begin(0x73); // for hex_points1 display
+  hex_points2.begin(0x75); // for hex_points2 display
   
   /***INITIALIZE RGB SENSORS***/
   TCAsel(player1); // select 2 I2C bus for sensor 1
@@ -254,6 +308,12 @@ void setup() {
   remove_void_sample(RGB_sensor2); // only happens once in beginning
 
   /*** INITIALIZE STEPPER ***/
+  //Set direction pins to OUTPUT mode explicitly
+  pinMode(STEPPER_DIRPIN_1, OUTPUT);
+  pinMode(STEPPER_DIRPIN_2, OUTPUT);
+  pinMode(STEPPER_STEPPIN_1, OUTPUT);
+  pinMode(STEPPER_STEPPIN_2, OUTPUT);
+  
   //initialize stepper PW, max speed, accel
   stepper1.setMinPulseWidth(PULSE_US);
   stepper1.setMaxSpeed(MAX_SPEED);
@@ -336,7 +396,7 @@ void loop(){
     start = startingMessage(lcd);
   } else {
     TCAsel(4);
-    gameOver = countdown(hex_timer, currentMillis, previousMillis, remainingSeconds);
+    gameOver = countdown(hex_timer1, hex_timer2, currentMillis, previousMillis, remainingSeconds);
       
     if (gameOver){
       TCAsel(player1);
@@ -381,13 +441,21 @@ void loop(){
       //Q: IS THIS DELAY(100) NEEDED? maybe reduce or remove totally as causing hex issues
       
       TCAsel(player1);
-      classify(VOTING_WINDOW, VOTING_INTERVAL, RGB_sensor1, player1,hex_points, points,
-        colorAvgR, colorAvgG, colorAvgB, NUM_COLORS, colorNames, pointsPerColor,
-        redMin, redMax, greenMin, greenMax, blueMin, blueMax, led_pin1);
+      classify(VOTING_WINDOW, VOTING_INTERVAL, RGB_sensor1, player1,hex_points1, points1,
+        colorAvgR_1, colorAvgG_1, colorAvgB_1, NUM_COLORS, colorNames, pointsPerColor,
+        redMin_1, redMax_1, greenMin_1, greenMax_1, blueMin_1, blueMax_1, led_pin1);
       TCAsel(player2);
-      classify(VOTING_WINDOW, VOTING_INTERVAL, RGB_sensor2, player2, hex_points, points,
-        colorAvgR, colorAvgG, colorAvgB, NUM_COLORS, colorNames, pointsPerColor,
-        redMin, redMax, greenMin, greenMax, blueMin, blueMax, led_pin2);
+      classify(VOTING_WINDOW, VOTING_INTERVAL, RGB_sensor2, player2, hex_points2, points2,
+        colorAvgR_2, colorAvgG_2, colorAvgB_2, NUM_COLORS, colorNames, pointsPerColor,
+        redMin_2, redMax_2, greenMin_2, greenMax_2, blueMin_2, blueMax_2, led_pin2);
+
+
+          /*
+          hex_timer1.begin(0x71); // for hex_timer1 display
+          hex_timer2.begin(0x72); // for hex_timer2 display
+          hex_points1.begin(0x75); // for hex_points1 display
+          hex_points2.begin(0x73); // for hex_points2 display
+          */
     }
   }
 }

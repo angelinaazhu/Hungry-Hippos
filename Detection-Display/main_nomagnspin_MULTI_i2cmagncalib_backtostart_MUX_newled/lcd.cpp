@@ -48,15 +48,15 @@ void gameScreen(rgb_lcd& lcd){
   //delay(500);
 
   lcd.setCursor(0,1);
-  lcd.print("Points");
+  lcd.print("TIME");
 
   // lcd.setCursor(8,0);
   // lcd.print("|");
   lcd.setCursor(8,1);
   lcd.print("|");
 
-  lcd.setCursor(12,1);
-  lcd.print("Time");
+  lcd.setCursor(10,1);
+  lcd.print("POINTS");
 
   // lcd.setCursor(0,1);
   // lcd.print("V"); 

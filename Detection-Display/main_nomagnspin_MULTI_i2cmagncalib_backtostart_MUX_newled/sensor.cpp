@@ -99,9 +99,9 @@ void classify(const unsigned long VOTING_WINDOW, const unsigned long VOTING_INTE
   //dec 27 removed printing to terminal for angle testing
   // print result and apply points
   Serial.print(">>> ");
-  if (player == 2){ // TO CHANGE IF CHANGE THE MUX THING
+  if (player == 3){ // TO CHANGE IF CHANGE THE MUX THING
     Serial.print("PLAYER 1: ");
-  } else if (player == 5){
+  } else if (player == 7){
     Serial.print("PLAYER 2: ");
   }
   if (colorNames != nullptr) Serial.println(colorNames[best]);
@@ -114,5 +114,7 @@ void classify(const unsigned long VOTING_WINDOW, const unsigned long VOTING_INTE
   Serial.print("POINTS: ");
   Serial.println(points);
   */
+  hex_points.print(points); //outputs points to POINTS hex display
+  hex_points.writeDisplay();
   delete[] counts;
 }
