@@ -57,7 +57,7 @@ bool mini_countdown(Adafruit_7segment& hex_timer, unsigned long& currentMillis, 
 
 //return false = time not up
 //return true = time up
-bool countdown(Adafruit_7segment& hex_timer, unsigned long& currentMillis, unsigned long& previousMillis, unsigned int& remainingSeconds){
+bool countdown(Adafruit_7segment& hex_timer1, Adafruit_7segment& hex_timer2, unsigned long& currentMillis, unsigned long& previousMillis, unsigned int& remainingSeconds){
   //Serial.println("countdown() called");
   currentMillis = millis();
 
@@ -83,25 +83,41 @@ bool countdown(Adafruit_7segment& hex_timer, unsigned long& currentMillis, unsig
     // Serial.print(sec10);
     // Serial.println(sec1);
 
-    //PRINT ON hex_timer
-    hex_timer.writeDigitNum(0, min10);
-    hex_timer.writeDigitNum(1, min1);
-    hex_timer.drawColon(true);
-    hex_timer.writeDigitNum(3, sec10);
-    hex_timer.writeDigitNum(4, sec1);
-    hex_timer.writeDisplay();
+    //PRINT ON hex_timer1
+    hex_timer1.writeDigitNum(0, min10);
+    hex_timer1.writeDigitNum(1, min1);
+    hex_timer1.drawColon(true);
+    hex_timer1.writeDigitNum(3, sec10);
+    hex_timer1.writeDigitNum(4, sec1);
+    hex_timer1.writeDisplay();
+
+    //PRINT on hex_timer2
+    hex_timer2.writeDigitNum(0, min10);
+    hex_timer2.writeDigitNum(1, min1);
+    hex_timer2.drawColon(true);
+    hex_timer2.writeDigitNum(3, sec10);
+    hex_timer2.writeDigitNum(4, sec1);
+    hex_timer2.writeDisplay();
 
     if (remainingSeconds > 0) {
       --remainingSeconds;
       return false;
     } else {
+      //timer1
       Serial.println("TIME'S UP!");
-      hex_timer.writeDigitAscii(0, 68);
-      hex_timer.writeDigitAscii(1, 79);
-      hex_timer.drawColon(false);
-      hex_timer.writeDigitAscii(3, 78);
-      hex_timer.writeDigitAscii(4, 69);
-      hex_timer.writeDisplay();
+      hex_timer1.writeDigitAscii(0, 68);//d
+      hex_timer1.writeDigitAscii(1, 79);//o
+      hex_timer1.drawColon(false);
+      hex_timer1.writeDigitAscii(3, 78);//n
+      hex_timer1.writeDigitAscii(4, 69);//e
+      hex_timer1.writeDisplay();
+      //timer2
+      hex_timer2.writeDigitAscii(0, 68);//d
+      hex_timer2.writeDigitAscii(1, 79);//o
+      hex_timer2.drawColon(false);
+      hex_timer2.writeDigitAscii(3, 78);//n
+      hex_timer2.writeDigitAscii(4, 69);//e
+      hex_timer2.writeDisplay();
       return true;
     }
   
