@@ -8,6 +8,15 @@ Then classifies ball on key press
 #include <Wire.h>
 #include "SFE_ISL29125.h"
 #include <Adafruit_NeoPixel.h>
+#define TCAADDR 0x70
+
+void TCAsel(uint8_t i) {
+  if (i > 7) return;
+ 
+  Wire.beginTransmission(TCAADDR);
+  Wire.write(1 << i);
+  Wire.endTransmission();  
+}
 
 #define LED_PIN 6   // DIN pin of LED
 #define NUM_LEDS 2  // num of LEDs chained together
@@ -26,12 +35,12 @@ int redVal, greenVal, blueVal; // clipped ver of intemediate scaled RGB values
 // unsigned int redMax   = 0;      // will store max R value sensor sensed
 // unsigned int greenMax = 0;
 // unsigned int blueMax  = 0; //COMMENT BACK IN IF NEED THIS
-const unsigned int redMin = 75;
-const unsigned int redMax = 8890;
-const unsigned int greenMin = 162;
-const unsigned int greenMax = 6365;
-const unsigned int blueMin = 160;
-const unsigned int blueMax = 9174;
+const unsigned int redMin = 103;
+const unsigned int redMax = 1344;
+const unsigned int greenMin = 349;
+const unsigned int greenMax = 1585;
+const unsigned int blueMin = 249;
+const unsigned int blueMax = 1243;
 
 
 // Calibrated averages for multiple colours
@@ -73,11 +82,16 @@ void ball_colour_calibration(int idx);
 void ball_colour_calibration_helper();
 void classify();
 
+int player1 = 4;
+
 /****************************SETUP & MAIN LOOP***************************/
 void setup() {
   Serial.begin(9600); // terminal baud rate
   while (!Serial);    // waits for USB serial interface object to connect
   Serial.println(" ");
+
+  Wire.begin(); //for mux
+  TCAsel(player1);
 
   // Checks if sensor is connected properly -> if not, re-wire & re-upload code
   if (!RGB_sensor.init()) {

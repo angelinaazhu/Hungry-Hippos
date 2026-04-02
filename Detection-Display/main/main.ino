@@ -3,6 +3,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
 #include <Wire.h>
+  //above for i2c
 #include <stdlib.h>
 
 #include "Adafruit_LEDBackpack.h"
@@ -23,7 +24,7 @@ int points2 = 0;  // player2 pooints
 
 // COUNTDOWN VARS
 // actual countdown
-const unsigned int startSeconds = 15;  // 2 minutes (3000 s)
+const unsigned int startSeconds = 2;  // 2 minutes (3000 s)
 unsigned int remainingSeconds = startSeconds;
 
 // mini pre game countdown
@@ -182,7 +183,7 @@ const float TARGET_RPM = 500.0;  // revs/min NOT sure what this should be
 const float MAX_SPEED = (STEPS_PER_REV * TARGET_RPM) / 60.0;
 // microsteps per rev * revs per min = steps per min
 // steps per min / 60 = steps per second = speed
-const float ACCEL = 99000.0;      // 2500 very slow but no jolt
+const float ACCEL = 50000.0;      // 2500 very slow but no jolt
 const unsigned int PULSE_US = 3;  // NOT sure what this should be
                                   // 2–3 us for DRV8825
                                   // 1–2 us for A4988
@@ -214,7 +215,7 @@ const float CHECKPOINT = 90.0;      // checkpoint every 90 degrees
 // #define SENSOR2_LED2 4
 
 // MUX VARS
-const int player1 = 4;  // TCA channel for player 1 (sensor 1)
+const int player1 = 2;  // TCA channel for player 1 (sensor 1)
 const int player2 = 7;  // TCA channel for player 2 (sensor 2)
 /*****************END OF ALL VARS***************/
 
@@ -235,10 +236,10 @@ Adafruit_7segment hex_points1 = Adafruit_7segment();
 Adafruit_7segment hex_timer1 = Adafruit_7segment();
 Adafruit_7segment hex_points2 = Adafruit_7segment();
 Adafruit_7segment hex_timer2 = Adafruit_7segment();
-AccelStepper stepper1(AccelStepper::DRIVER, STEPPER_STEPPIN_2,
-                      STEPPER_DIRPIN_2);
-AccelStepper stepper2(AccelStepper::DRIVER, STEPPER_STEPPIN_1,
+AccelStepper stepper1(AccelStepper::DRIVER, STEPPER_STEPPIN_1,
                       STEPPER_DIRPIN_1);
+AccelStepper stepper2(AccelStepper::DRIVER, STEPPER_STEPPIN_2,
+                      STEPPER_DIRPIN_2);
 rgb_lcd lcd1;
 rgb_lcd lcd2;
 
@@ -253,12 +254,13 @@ void setup() {
   // hex_points.begin(0x70); // for hex_points display
 
   /***INITIALIZE HEX***/
-  hex_timer1.begin(0x71);   // for hex_timer1 display -> according to the hex shorts itself. so just connect it directly to the SDA/SCL
+  hex_timer1.begin(0x71);   // for hex_timer1 display
   hex_points1.begin(0x72);  // for hex_timer2 display
   hex_timer2.begin(0x73);   // for hex_points1 display
   hex_points2.begin(0x75);  // for hex_points2 display
 
-  /***INITIALIZE RGB SENSORS***/
+  // /***INITIALIZE RGB SENSORS***/
+  // MAR1
   TCAsel(player1);  // select 2 I2C bus for sensor 1
   // initialize RGB sensor
   while (!RGB_sensor1.init()) {
@@ -296,6 +298,7 @@ void setup() {
   remove_void_sample(RGB_sensor1);  // only happens once in beginning
   TCAsel(player2);
   remove_void_sample(RGB_sensor2);  // only happens once in beginning
+  //MAR1
 
   /*** INITIALIZE STEPPER ***/
   // Set direction pins to OUTPUT mode explicitly
@@ -321,11 +324,12 @@ void setup() {
 
   //checkMagnetPresence(); //check the magnet: wait here until magnet is found
 
-  Serial.println("Welcome!"); //print a welcome message
-  Serial.println("AS5600"); //print a welcome message
-  delay(3000); // QUESTION: can reduce this?
-
+  // Serial.println("Welcome!"); //print a welcome message
+  // Serial.println("AS5600"); //print a welcome message
+  // delay(3000); // QUESTION: can reduce this?
+  
   /*** CHECK AS5600 SENSORS & MAGNET ***/
+   //MAR1
   TCAsel(player1);
   while (!as5600Connected()) {
     Serial.println("AS5600 sensor1 not found. Check wiring.");
@@ -372,7 +376,7 @@ void setup() {
   relAngle_2 = getRelativeAngle(absAngle_2, startAngle_2);
   lastCheckpointAngle_2 = relAngle_2;  // initialize last checkpoint angle to be
                                        // relative starting angle
-
+  
   // initialize LCD
   TCAsel(player1);
   lcd1.begin(16, 2);
@@ -380,20 +384,22 @@ void setup() {
   TCAsel(player2);
   lcd2.begin(16, 2);
   lcd2.setRGB(255, 255, 255);
+   //MAR1
 
   // TCAsel(player1);
   // startingMessage(lcd);
 }
 
 void loop() {
-  if (start == false) {
+  if (start == false) { //game did not start yet
     // mini_countdown(hex_timer, currentMillis, previousMillis, secondsUntilGo,
     // start);
     TCAsel(player1);
     start = startingMessage(lcd1);
     TCAsel(player2);
     start = startingMessage(lcd2);
-  } else {
+  } else { // game started
+
     TCAsel(player1);
     gameOver = countdown(hex_timer1, hex_timer2, currentMillis, previousMillis,
                          remainingSeconds);
@@ -443,9 +449,23 @@ void loop() {
       }
 
 
-      while (1) {};  // stay here
+      while (1) {
+        /***SIGNAL FOR UNO CIRCULATION***/ // WILL SEND A 0 OVER & OVER AGAIN
+        Wire.beginTransmission(9);
+        Wire.write(0);
+        Serial.println("Sent 0 to circulation");
+        Wire.endTransmission();
+        /***SIGNAL FOR UNO CIRCULATION***/
+      };  // stay here
 
     } else {
+      /***SIGNAL FOR UNO CIRCULATION***/ // WILL SEND A 1 OVER & OVER AGAIN
+      Wire.beginTransmission(9);
+      Wire.write(1);
+      Serial.println("Sent 1 to circulation");
+      Wire.endTransmission();
+      /***SIGNAL FOR UNO CIRCULATION***/
+
       // Serial.println("Displaying game screen");
       TCAsel(player1);
       gameScreen(lcd1);
@@ -454,11 +474,11 @@ void loop() {
 
       // Serial.println("spinning motor1");
       spinRevs(1.0 / 4.0f, direction, stepper1, STEPS_PER_REV);
-      // Serial.println("spun motor1");
+      Serial.println("spun motor1");
 
       // Serial.println("spinning motor2");
       spinRevs(1.0 / 4.0f, direction, stepper2, STEPS_PER_REV);
-      // Serial.println("spun motor2");
+      Serial.println("spun motor2");
       //  1/4 = spin quarter of a rev, +1 = CW
       // spinMagn(ENCODER_PIN, RUN_SPEED, TARGET_DELTA, stepper, -1); //-1 for
       // cw

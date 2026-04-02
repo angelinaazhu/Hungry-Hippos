@@ -4,7 +4,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import hashlib
 import colorsys
 
-fname = "jan4_round1_rgb_cluster_formatted_header.csv"
+fname = "feb21_round1_cluster.csv"
 
 def record_samples():
     """

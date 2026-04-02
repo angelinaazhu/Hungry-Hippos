@@ -56,7 +56,7 @@ double blueBallAvgR, blueBallAvgG, blueBallAvgB;
 double yellowBallAvgR, yellowBallAvgG, yellowBallAvgB;
 double redBallAvgR, redBallAvgG, redBallAvgB;
 
-const unsigned long INTENSITY_CALIB_DURATION = 50000UL; // calibrate light intensity duration
+const unsigned long INTENSITY_CALIB_DURATION = 100UL; // calibrate light intensity duration
 const unsigned long BALL_CALIB_DURATION = 10000UL; // calibrate ball duration
 const unsigned long SAMPLE_INTERVAL = 500UL; // time between samples
 
@@ -77,7 +77,7 @@ void setup() {
   while (!Serial);    // waits for USB serial interface object to connect
   Serial.println(" ");
 
-    TCAsel(2);
+  TCAsel(5);
 
   // Checks if sensor is connected properly -> if not, re-wire & re-upload code
   if (!RGB_sensor.init()) {

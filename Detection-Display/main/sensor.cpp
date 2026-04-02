@@ -99,7 +99,7 @@ void classify(const unsigned long VOTING_WINDOW, const unsigned long VOTING_INTE
   //dec 27 removed printing to terminal for angle testing
   // print result and apply points
   Serial.print(">>> ");
-  if (player == 4){ // TO CHANGE IF CHANGE THE MUX THING
+  if (player == 2){ // TO CHANGE IF CHANGE THE MUX THING
     Serial.print("PLAYER 1: ");
   } else if (player == 7){
     Serial.print("PLAYER 2: ");
