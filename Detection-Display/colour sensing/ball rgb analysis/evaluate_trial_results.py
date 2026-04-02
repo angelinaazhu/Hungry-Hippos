@@ -6,7 +6,7 @@ from numpy.linalg import norm
 # -----------------------------
 # Load dataset
 # -----------------------------
-df = pd.read_csv("jan4_round1_rgb_cluster_formatted_header.csv")
+df = pd.read_csv("feb21_round1_cluster.csv")
 
 # -----------------------------
 # Compute centroids (same as Arduino calibration)
@@ -97,7 +97,7 @@ confusion = pd.crosstab(
 # -----------------------------
 # Write to Excel
 # -----------------------------
-output = "jan4_round1_color_analysis.xlsx"
+output = "feb21_round1_color_analysis.xlsx"
 
 with pd.ExcelWriter(output) as writer:
     centroids.to_excel(writer, sheet_name="Centroids")

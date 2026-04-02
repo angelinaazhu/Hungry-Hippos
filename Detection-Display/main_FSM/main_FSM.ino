@@ -1,0 +1,830 @@
+#include <AccelStepper.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_NeoPixel.h>
+#include <Arduino.h>
+#include <Wire.h>
+  //above for i2c
+#include <stdlib.h>
+
+#include "Adafruit_LEDBackpack.h"
+#include "SFE_ISL29125.h"
+#include "countdown.h"
+#include "lcd.h"
+#include "mux.h"
+#include "points.h"
+#include "rgb_lcd.h"
+#include "sensor.h"
+#include "spin.h"
+#include "vars.h"
+
+/***********ALL VARS************/
+// GLOBAL POINT VAR
+int points1 = 0;  // player1 points
+int points2 = 0;  // player2 pooints
+
+// COUNTDOWN VARS
+// actual countdown
+const unsigned int startSeconds = 10;  // 2 minutes (3000 s)
+unsigned int remainingSeconds = startSeconds;
+
+// mini pre game countdown
+const unsigned int miniStartSeconds = 3;  // 3, 2, 1, GO
+unsigned int secondsUntilGo = miniStartSeconds;
+
+// used for both countdowns
+unsigned long previousMillis = 0;
+unsigned long currentMillis;
+bool start = false;
+bool gameOver = false;
+
+// SENSOR VARS
+// #define LED_PIN 6   // DIN pin of LED
+// #define NUM_LEDS 2  // num of LEDs chained together
+const unsigned int led_pin1 = 6;
+const unsigned int led_pin2 = 7;  // change later
+// prev calculated min/max RGB intensity values
+const unsigned int redMin_1 = 76;
+const unsigned int redMax_1 = 958;
+const unsigned int greenMin_1 = 252;
+const unsigned int greenMax_1 = 1353;
+const unsigned int blueMin_1 = 186;
+const unsigned int blueMax_1 = 1101;
+
+const unsigned int redMin_2 = 82;
+const unsigned int redMax_2 = 1162;
+const unsigned int greenMin_2 = 285;
+const unsigned int greenMax_2 = 1764;
+const unsigned int blueMin_2 = 231;
+const unsigned int blueMax_2 = 1467;
+// NEW: multi-color averages from your calibration output (order matches
+// colorNames below)
+const int NUM_COLORS = 8;
+
+// sensor1
+const double colorAvgR_1[NUM_COLORS] = {0.7000,
+//13.4500,
+166.8500,
+172.5500,
+//8.1500,
+53.3500,
+174.1000,
+32.3500,
+59.9000,
+245.6000};
+const double colorAvgG_1[NUM_COLORS] = {1.7000,
+//47.8000,
+168.6000,
+212.4000,
+//17.4000,
+19.2500,
+114.5500,
+28.9500,
+122.8000,
+108.6000};
+const double colorAvgB_1[NUM_COLORS] = {0.0000,
+//109.7000,
+56.1500,
+197.4500,
+//56.2000,
+9.4500,
+124.0500,
+61.0000,
+53.6000,
+38.2000};
+
+// sensor2
+const double colorAvgR_2[NUM_COLORS] = {12.5000,
+//22.5000,
+152.4500,
+135.6000,
+//15.8000,
+61.6500,
+160.1500,
+35.1500,
+51.6500,
+171.3500};
+const double colorAvgG_2[NUM_COLORS] = {12.8000,
+//39.0500,
+133.9500,
+161.0500,
+//16.1000,
+19.9500,
+99.2500,
+24.0500,
+79.5500,
+66.1500};
+const double colorAvgB_2[NUM_COLORS] = {7.8000,
+//56.4500,
+57.9500,
+153.8000,
+//44.9500,
+8.4000,
+105.6000,
+43.5000,
+36.9000,
+30.0500};
+
+// human-friendly names in same order as calibration
+const char* colorNames[NUM_COLORS] = {"NO BALL",
+//"LIGHT BLUE",
+"YELLOW",
+"WHITE",
+//"DARK BLUE",
+"RED",
+"PINK",
+"PURPLE",
+"GREEN",
+"ORANGE"};
+// points assigned per color (customize as desired)
+const int pointsPerColor[NUM_COLORS] = {0,
+//5,
+5,
+5,
+//5,
+-5,
+5,
+5,
+10,
+5};
+const unsigned long VOTING_WINDOW = 500UL;
+const unsigned long VOTING_INTERVAL = 5UL;
+
+// SPIN VARS
+const int STEPPER_STEPPIN_1 = 8;
+const int STEPPER_DIRPIN_1 = 9;  // purple
+const int STEPPER_STEPPIN_2 = 11;
+const int STEPPER_DIRPIN_2 = 12;  // purple
+const int ENABLE_PIN = -1;
+const int ENCODER_PIN = A0;
+const float RUN_SPEED = 2000;     // steps per second (choose what works)
+const float TARGET_DELTA = 90.0;  // 1/4 revolution
+// const float MAXSPEED = 10000000000000000000;
+// const float MAXACCEL = 10000000000000000000;
+
+// MOTOR VARS: USED FOR BLIND #STEP SPINS
+//  const int STEPPER_STEPPIN_1   = 8;
+//  const int STEPPER_DIRPIN_1    = 9;
+//  const int ENABLE_PIN = -1; // set to your EN pin, or -1 if none
+
+const int MOTOR_FULL_STEPS =
+    200;                    // full motor steps per revolution
+                            // 360° per rev
+                            // motor is 0.9° per step
+                            // steps/rev = 360° per rev / 0.9° per step = 400
+const int MICROSTEPS = 32;  // motor drive is rated 32 segments
+                            // driver divides 1 full step -> 32 microsteps
+const long STEPS_PER_REV = (long)MOTOR_FULL_STEPS * MICROSTEPS;
+// driver motor microsteps per revolution
+// 400 * 32 = 12800
+
+const float TARGET_RPM = 500.0;  // revs/min NOT sure what this should be
+                                 // chatgpt: try 120–240 depending on
+                                 // torque/supply amazon: max torque is 1.8 N*m
+const float MAX_SPEED = (STEPS_PER_REV * TARGET_RPM) / 60.0;
+// microsteps per rev * revs per min = steps per min
+// steps per min / 60 = steps per second = speed
+const float ACCEL = 50000.0;      // 2500 very slow but no jolt
+const unsigned int PULSE_US = 3;  // NOT sure what this should be
+                                  // 2–3 us for DRV8825
+                                  // 1–2 us for A4988
+const int direction = -1;         // ccw = -1, cw = 1
+
+// MAGN VARS
+// Magnetic sensor things
+// int magnetStatus = 0; //value of the status register (MD, ML, MH)
+//                       //tells if magnet is detected & if strength OK
+int lowbyte;       // raw angle 7:0
+word highbyte;     // raw angle 7:0 and 11:8
+int rawAngle;      // final raw angle number (0-4095)
+float absAngle_1;  // raw angle in degrees (360/4096 * [value between 0-4095])
+float startAngle_1 = 0.0;  // starting angle
+float relAngle_1 =
+    0.0;  // relative to startAngle_1: current angle -  startAngle_1
+float lastCheckpointAngle_1 = 0.0;  // to keep track of when last the motor
+                                    // stopped spinning (completed 90)
+
+float absAngle_2;  // raw angle in degrees (360/4096 * [value between 0-4095])
+float startAngle_2 = 0.0;  // starting angle
+float relAngle_2 =
+    0.0;  // relative to startAngle_1: current angle -  startAngle_1
+float lastCheckpointAngle_2 = 0.0;  // to keep track of when last the motor
+const float CHECKPOINT = 90.0;      // checkpoint every 90 degrees
+
+// FROSTED LED VARS
+// #define SENSOR2_LED1 3
+// #define SENSOR2_LED2 4
+
+// MUX VARS
+const int player1 = 2;  // TCA channel for player 1 (sensor 1)
+const int player2 = 7;  // TCA channel for player 2 (sensor 2)
+/*****************END OF ALL VARS***************/
+
+/*MUX TODO:
+- add TCAsel function (DONE)
+- 2 colour sensors: instantiate 2, call everything 2x (DONE)
+- 2 magnet sensors (DONE)
+- 2 motors
+- 4 hexes (worry about this later)
+- 2 groves (didnt even integrate yet, worry about this later)
+*/
+
+// objects
+// Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+SFE_ISL29125 RGB_sensor1;
+SFE_ISL29125 RGB_sensor2;
+Adafruit_7segment hex_points1 = Adafruit_7segment();
+Adafruit_7segment hex_timer1 = Adafruit_7segment();
+Adafruit_7segment hex_points2 = Adafruit_7segment();
+Adafruit_7segment hex_timer2 = Adafruit_7segment();
+AccelStepper stepper1(AccelStepper::DRIVER, STEPPER_STEPPIN_1,
+                      STEPPER_DIRPIN_1);
+AccelStepper stepper2(AccelStepper::DRIVER, STEPPER_STEPPIN_2,
+                      STEPPER_DIRPIN_2);
+rgb_lcd lcd1;
+rgb_lcd lcd2;
+
+//FSM
+typedef enum {
+  GAME_IDLE,
+  GAME_321,
+  GAME_GO,
+  GAME_PLAYING,
+  GAME_COOLDOWN,
+  GAME_OVER_RESET
+} state;
+
+//CIRCULATION INTEGRATION
+const int toCirculation = 2;
+
+
+//FSM
+state curr = GAME_IDLE;
+
+void setup() {
+  delay(100);
+
+  // initialize serial
+  Serial.begin(9600);  // terminal baud rate
+  while (!Serial);     // waits for USB serial interface object to connect
+  Serial.println(" ");
+
+  // initialize hex -> QUESTION: CAN THEY BOTH BE AT SAME ADDRESS?
+  // hex_points.begin(0x70); // for hex_points display
+
+  /***INITIALIZE HEX***/
+  hex_timer1.begin(0x71);   // for hex_timer1 display
+  hex_points1.begin(0x72);  // for hex_timer2 display
+  hex_timer2.begin(0x73);   // for hex_points1 display
+  hex_points2.begin(0x75);  // for hex_points2 display
+
+  // /***INITIALIZE RGB SENSORS***/
+  // MAR1
+  TCAsel(player1);  // select 2 I2C bus for sensor 1
+  // initialize RGB sensor
+  while (!RGB_sensor1.init()) {
+    Serial.println("RGB sensor1 init failed! Check wiring.");
+    delay(100);
+  }
+
+  TCAsel(player2);  // select 5 I2C bus for sensor 2
+  while (!RGB_sensor2.init()) {
+    Serial.println("RGB sensor2 init failed! Check wiring.");
+    delay(100);
+  }
+
+  /*** INITIALIZE LEDS ***/
+  Serial.println("Lighting up LEDs...");
+  // initialize LED (sensor1, way1)
+  // strip.begin();// init LED
+  // initialize LED
+  pinMode(led_pin1, OUTPUT); // ISSUE: i think i was plugging in LED to 5v directly instead of these pins
+  pinMode(led_pin2, OUTPUT);
+  // light up led
+  light_LED(led_pin1);  // lights it on pin1
+  light_LED(led_pin2);  // lights it on pin2
+
+  // //initialize LED (sensor2, way2)
+  // pinMode(SENSOR2_LED1, OUTPUT);
+  // digitalWrite(SENSOR2_LED1, HIGH);
+  // pinMode(SENSOR2_LED2, OUTPUT);
+  // digitalWrite(SENSOR2_LED2, HIGH);
+
+  Serial.println("RGB sensors 1 & 2 init successful.");
+
+  /*** REMOVE VOID SAMPLES ***/
+  TCAsel(player1);
+  remove_void_sample(RGB_sensor1);  // only happens once in beginning
+  TCAsel(player2);
+  remove_void_sample(RGB_sensor2);  // only happens once in beginning
+  //MAR1
+
+  /*** INITIALIZE STEPPER ***/
+  // Set direction pins to OUTPUT mode explicitly
+  pinMode(STEPPER_DIRPIN_1, OUTPUT);
+  pinMode(STEPPER_DIRPIN_2, OUTPUT);
+  pinMode(STEPPER_STEPPIN_1, OUTPUT);
+  pinMode(STEPPER_STEPPIN_2, OUTPUT);
+
+  // initialize stepper PW, max speed, accel
+  stepper1.setMinPulseWidth(PULSE_US);
+  stepper1.setMaxSpeed(MAX_SPEED);
+  stepper1.setAcceleration(ACCEL);
+  // stepper.setMaxSpeed(MAXSPEED);   // higher than run speed
+  // stepper.setAcceleration(MAXACCEL);
+  stepper2.setMinPulseWidth(PULSE_US);
+  stepper2.setMaxSpeed(MAX_SPEED);
+  stepper2.setAcceleration(ACCEL);
+
+  /*** INITIALIZE MAGNETIC SENSORS ***/
+  // initialize magn i2c
+  Wire.begin();            // start i2C
+  Wire.setClock(800000L);  // fast clock 800kHz freq
+
+  //checkMagnetPresence(); //check the magnet: wait here until magnet is found
+
+  // Serial.println("Welcome!"); //print a welcome message
+  // Serial.println("AS5600"); //print a welcome message
+  // delay(3000); // QUESTION: can reduce this?
+  
+  /*** CHECK AS5600 SENSORS & MAGNET ***/
+   //MAR1
+  TCAsel(player1);
+  while (!as5600Connected()) {
+    Serial.println("AS5600 sensor1 not found. Check wiring.");
+    delay(100);
+  }
+  TCAsel(player2);
+  while (!as5600Connected()) {
+    Serial.println("AS5600 sensor2 not found. Check wiring.");
+    delay(100);
+  }
+  
+  Serial.println("AS5600 wired.");
+
+  TCAsel(player1);
+  while (!isMagnetOK()) {
+    Serial.println("Magnet1 not found.");
+    delay(100);
+  }
+  TCAsel(player2);
+  while (!isMagnetOK()) {
+    Serial.println("Magnet2 not found.");
+    delay(100);
+  }
+  Serial.println("Magnets 1 & 2 in position.");
+
+  Serial.print("start angle: ");
+  Serial.println(startAngle_1);
+  delay(100);
+
+  TCAsel(player1);
+  // reads current angle again to set checkpoint for 90 degree rotation
+  // detection
+  absAngle_1 = getAbsAngle();
+  startAngle_1 = absAngle_1;
+  relAngle_1 = getRelativeAngle(absAngle_1, startAngle_1);
+  lastCheckpointAngle_1 = relAngle_1;  // initialize last checkpoint angle to be
+                                       // relative starting angle
+
+  TCAsel(player2);
+  // reads current angle again to set checkpoint for 90 degree rotation
+  // detection
+  absAngle_2 = getAbsAngle();
+  startAngle_2 = absAngle_2;
+  relAngle_2 = getRelativeAngle(absAngle_2, startAngle_2);
+  lastCheckpointAngle_2 = relAngle_2;  // initialize last checkpoint angle to be
+                                       // relative starting angle
+  
+  // initialize LCD
+  TCAsel(player1);
+  lcd1.begin(16, 2);
+  lcd1.setRGB(255, 255, 255);
+  TCAsel(player2);
+  lcd2.begin(16, 2);
+  lcd2.setRGB(255, 255, 255);
+   //MAR1
+
+  // TCAsel(player1);
+  // startingMessage(lcd);
+}
+
+/*
+//FSM
+typedef enum {
+  GAME_IDLE,
+  GAME_321,
+  GAME_GO,
+  GAME_PLAYING,
+  GAME_COOLDOWN,
+  GAME_OVER_RESET
+} state;
+*/
+
+char recvChar;
+
+void read_key_in(){
+  if (Serial.available() > 0) {
+    recvChar = Serial.read();
+  }
+}
+
+void loop() {
+  switch(curr){
+    case GAME_IDLE:
+      //After initializing everything, stay here until player is ready to play (e.g. button press)
+      Serial.println("GAME IDLE");
+      //DO NOTHING
+      //start = false;
+
+      read_key_in();
+      if (recvChar == 'a'){
+        curr = GAME_321;
+        Serial.println("switch to GAME 321");
+      }
+      break;
+
+    case GAME_321:
+      //pressed button, ready to go
+      Serial.println("GAME 321");
+      // print 321 go thing -> MAR21NOTE: do 321 on hex, and lcd only display "game starting in"
+      TCAsel(player1);
+      startingMessage(lcd1);
+      TCAsel(player2);
+      startingMessage(lcd2);
+
+      //show 321 on hex
+      start = mini_countdown(hex_timer1, hex_timer2, currentMillis, previousMillis, secondsUntilGo, start);
+
+      if(start == true){ // MAR21NOTE: or can change to every time after 321 on hex is done, switch to next state
+        curr = GAME_GO;
+        //send HIGH to circulation = game start -> start spinning screw to get balls up
+        digitalWrite(toCirculation, HIGH);
+        Serial.println("sent HIGH to circulation");
+        Serial.println("switch to GAME GO");
+      } //else start == false, remain in 321 go state
+      break;
+      
+    case GAME_GO:
+      //mini 321 countdown done, start game
+      Serial.println("GAME GO");
+
+      //show countdown timer on hex
+      gameOver = countdown(hex_timer1, hex_timer2, currentMillis, previousMillis, remainingSeconds);
+
+      // Serial.println("Displaying game screen");
+      TCAsel(player1);
+      gameScreen(lcd1);
+      TCAsel(player2);
+      gameScreen(lcd2);
+
+      // Serial.println("spinning motor1");
+      spinRevs(1.0 / 4.0f, direction, stepper1, STEPS_PER_REV);
+      Serial.println("spun motor1");
+
+      // Serial.println("spinning motor2");
+      spinRevs(1.0 / 4.0f, direction, stepper2, STEPS_PER_REV);
+      Serial.println("spun motor2");
+
+      // classify
+      TCAsel(player1);
+      classify(VOTING_WINDOW, VOTING_INTERVAL, RGB_sensor1, player1,
+          hex_points1, points1, colorAvgR_1, colorAvgG_1, colorAvgB_1,
+          NUM_COLORS, colorNames, pointsPerColor, redMin_1, redMax_1,
+          greenMin_1, greenMax_1, blueMin_1, blueMax_1, led_pin1);
+      TCAsel(player2);
+      classify(VOTING_WINDOW, VOTING_INTERVAL, RGB_sensor2, player2,
+          hex_points2, points2, colorAvgR_2, colorAvgG_2, colorAvgB_2,
+          NUM_COLORS, colorNames, pointsPerColor, redMin_2, redMax_2,
+          greenMin_2, greenMax_2, blueMin_2, blueMax_2, led_pin2);
+      
+      if(gameOver == true){
+        curr = GAME_COOLDOWN;
+        //send LOW to circulation = game end -> stop spinning screw, no balls need to go up anymore
+        digitalWrite(toCirculation, LOW);
+        Serial.println("sent LOW to circulation");
+        Serial.println("switch to GAME COOLDOWN");
+      }
+      break;
+
+    case GAME_COOLDOWN:
+      //"counting balls" = spinning motor back to start
+      Serial.println("GAME COOLDOWN");
+      TCAsel(player1);
+      coolDownMsg(lcd1);
+      TCAsel(player2);
+      coolDownMsg(lcd2);
+
+      // spin back to start
+      Serial.println("Spinning back to start...");
+      TCAsel(player1);
+      spinBackToZero(stepper1, direction, 0.5, RUN_SPEED,
+                     startAngle_1);  // 0.5 degree tolerance
+      TCAsel(player2);
+      spinBackToZero(stepper2, direction, 0.5, RUN_SPEED,
+                     startAngle_2);  // 0.5 degree tolerance
+
+      if (points1 > points2){
+        Serial.println("Player 1 won");
+        TCAsel(player1);
+        win(lcd1, points1);
+        TCAsel(player2);
+        loss(lcd2, points2);
+
+      } else if (points1 < points2){
+        TCAsel(player1);
+        Serial.println("Player 2 won");
+        loss(lcd1, points1);
+        TCAsel(player2);
+        win(lcd2, points2);
+
+      } else if (points1 == points2){
+        Serial.println("TIE!");
+        TCAsel(player1);
+        tie(lcd1, points1); 
+        TCAsel(player2);
+        tie(lcd2, points2); 
+      }
+
+      //always switch
+      curr = GAME_OVER_RESET;
+      Serial.println("switch to GAME OVER");
+      break;
+    
+    case GAME_OVER_RESET:
+      Serial.println("GAME OVER/RESET");
+
+      Serial.println("Resetting variables");
+
+      start = false;
+      secondsUntilGo = miniStartSeconds;
+      remainingSeconds = startSeconds;
+
+      //everything in setup
+          
+          
+      /***INITIALIZE HEX***/
+      hex_timer1.begin(0x71);   // for hex_timer1 display
+      hex_points1.begin(0x72);  // for hex_timer2 display
+      hex_timer2.begin(0x73);   // for hex_points1 display
+      hex_points2.begin(0x75);  // for hex_points2 display
+
+      // /***INITIALIZE RGB SENSORS***/
+      // MAR1
+      TCAsel(player1);  // select 2 I2C bus for sensor 1
+      // initialize RGB sensor
+      while (!RGB_sensor1.init()) {
+        Serial.println("RGB sensor1 init failed! Check wiring.");
+        delay(100);
+      }
+
+      TCAsel(player2);  // select 5 I2C bus for sensor 2
+      while (!RGB_sensor2.init()) {
+        Serial.println("RGB sensor2 init failed! Check wiring.");
+        delay(100);
+      }
+
+      /*** INITIALIZE LEDS ***/
+      Serial.println("Lighting up LEDs...");
+      // initialize LED (sensor1, way1)
+      // strip.begin();// init LED
+      // initialize LED
+      pinMode(led_pin1, OUTPUT); // ISSUE: i think i was plugging in LED to 5v directly instead of these pins
+      pinMode(led_pin2, OUTPUT);
+      // light up led
+      light_LED(led_pin1);  // lights it on pin1
+      light_LED(led_pin2);  // lights it on pin2
+
+      // //initialize LED (sensor2, way2)
+      // pinMode(SENSOR2_LED1, OUTPUT);
+      // digitalWrite(SENSOR2_LED1, HIGH);
+      // pinMode(SENSOR2_LED2, OUTPUT);
+      // digitalWrite(SENSOR2_LED2, HIGH);
+
+      Serial.println("RGB sensors 1 & 2 init successful.");
+
+      /*** REMOVE VOID SAMPLES ***/
+      TCAsel(player1);
+      remove_void_sample(RGB_sensor1);  // only happens once in beginning
+      TCAsel(player2);
+      remove_void_sample(RGB_sensor2);  // only happens once in beginning
+      //MAR1
+
+      /*** INITIALIZE STEPPER ***/
+      // Set direction pins to OUTPUT mode explicitly
+      pinMode(STEPPER_DIRPIN_1, OUTPUT);
+      pinMode(STEPPER_DIRPIN_2, OUTPUT);
+      pinMode(STEPPER_STEPPIN_1, OUTPUT);
+      pinMode(STEPPER_STEPPIN_2, OUTPUT);
+
+      // initialize stepper PW, max speed, accel
+      stepper1.setMinPulseWidth(PULSE_US);
+      stepper1.setMaxSpeed(MAX_SPEED);
+      stepper1.setAcceleration(ACCEL);
+      // stepper.setMaxSpeed(MAXSPEED);   // higher than run speed
+      // stepper.setAcceleration(MAXACCEL);
+      stepper2.setMinPulseWidth(PULSE_US);
+      stepper2.setMaxSpeed(MAX_SPEED);
+      stepper2.setAcceleration(ACCEL);
+
+      /*** INITIALIZE MAGNETIC SENSORS ***/
+      // initialize magn i2c
+      Wire.begin();            // start i2C
+      Wire.setClock(800000L);  // fast clock 800kHz freq
+
+      //checkMagnetPresence(); //check the magnet: wait here until magnet is found
+
+      // Serial.println("Welcome!"); //print a welcome message
+      // Serial.println("AS5600"); //print a welcome message
+      // delay(3000); // QUESTION: can reduce this?
+      
+      /*** CHECK AS5600 SENSORS & MAGNET ***/
+      //MAR1
+      TCAsel(player1);
+      while (!as5600Connected()) {
+        Serial.println("AS5600 sensor1 not found. Check wiring.");
+        delay(100);
+      }
+      TCAsel(player2);
+      while (!as5600Connected()) {
+        Serial.println("AS5600 sensor2 not found. Check wiring.");
+        delay(100);
+      }
+      
+      Serial.println("AS5600 wired.");
+
+      TCAsel(player1);
+      while (!isMagnetOK()) {
+        Serial.println("Magnet1 not found.");
+        delay(100);
+      }
+      TCAsel(player2);
+      while (!isMagnetOK()) {
+        Serial.println("Magnet2 not found.");
+        delay(100);
+      }
+      Serial.println("Magnets 1 & 2 in position.");
+
+      Serial.print("start angle: ");
+      Serial.println(startAngle_1);
+      delay(100);
+
+      TCAsel(player1);
+      // reads current angle again to set checkpoint for 90 degree rotation
+      // detection
+      absAngle_1 = getAbsAngle();
+      startAngle_1 = absAngle_1;
+      relAngle_1 = getRelativeAngle(absAngle_1, startAngle_1);
+      lastCheckpointAngle_1 = relAngle_1;  // initialize last checkpoint angle to be
+                                          // relative starting angle
+
+      TCAsel(player2);
+      // reads current angle again to set checkpoint for 90 degree rotation
+      // detection
+      absAngle_2 = getAbsAngle();
+      startAngle_2 = absAngle_2;
+      relAngle_2 = getRelativeAngle(absAngle_2, startAngle_2);
+      lastCheckpointAngle_2 = relAngle_2;  // initialize last checkpoint angle to be
+                                          // relative starting angle
+      
+      // initialize LCD
+      TCAsel(player1);
+      lcd1.begin(16, 2);
+      lcd1.setRGB(255, 255, 255);
+      TCAsel(player2);
+      lcd2.begin(16, 2);
+      lcd2.setRGB(255, 255, 255);
+      //MAR1
+      
+      //MAR21TODO: stay here for a while? and then idle?
+      //for now, always switch
+      curr = GAME_IDLE;
+      Serial.println("switch to GAME IDLE");
+      break;
+
+  }
+  /*
+    if (start == false) { //game did not start yet
+      // mini_countdown(hex_timer, currentMillis, previousMillis, secondsUntilGo,
+      // start);
+      TCAsel(player1);
+      start = startingMessage(lcd1);
+      TCAsel(player2);
+      start = startingMessage(lcd2);
+    } else { // game started
+
+      TCAsel(player1);
+      gameOver = countdown(hex_timer1, hex_timer2, currentMillis, previousMillis,
+                          remainingSeconds);
+
+      if (gameOver) {
+        TCAsel(player1);
+        coolDownMsg(lcd1);
+        TCAsel(player2);
+        coolDownMsg(lcd2); // this will play until the angle is spun to initial
+
+        // spin back to start
+        Serial.println("Spinning back to start...");
+        TCAsel(player1);
+        spinBackToZero(stepper1, direction, 0.5, RUN_SPEED,
+                      startAngle_1);  // 0.5 degree tolerance
+        TCAsel(player2);
+        spinBackToZero(stepper2, direction, 0.5, RUN_SPEED,
+                      startAngle_2);  // 0.5 degree tolerance
+        // JAN31: check points1 vs points2
+        // JAN31: if points1>points2
+        // JAN31: win(rgb_lcd& lcd1)
+        // JAN31: loss(rgb_lcd& lcd2)
+        // JAN31: else if points2>points1
+        // JAN31: win(rgb_lcd& lcd2)
+        // JAN31: loss(rgb_lcd& lcd1)
+
+        if (points1 > points2){
+          Serial.println("Player 1 won");
+          TCAsel(player1);
+          win(lcd1, points1);
+          TCAsel(player2);
+          loss(lcd2, points2);
+
+        } else if (points1 < points2){
+          TCAsel(player1);
+          Serial.println("Player 2 won");
+          loss(lcd1, points1);
+          TCAsel(player2);
+          win(lcd2, points2);
+
+        } else if (points1 == points2){
+          Serial.println("TIE!");
+          TCAsel(player1);
+          tie(lcd1, points1); 
+          TCAsel(player2);
+          tie(lcd2, points2); 
+        }
+
+
+        while (1) {
+          /.SIGNAL FOR UNO CIRCULATION WILL SEND A 0 OVER & OVER AGAIN
+          Wire.beginTransmission(9);
+          Wire.write(0);
+          Serial.println("Sent 0 to circulation");
+          Wire.endTransmission();
+          //SIGNAL FOR UNO CIRCULATION
+        };  // stay here
+
+      } else {
+        //SIGNAL FOR UNO CIRCULATION  WILL SEND A 1 OVER & OVER AGAIN
+        Wire.beginTransmission(9);
+        Wire.write(1);
+        Serial.println("Sent 1 to circulation");
+        Wire.endTransmission();
+        //SIGNAL FOR UNO CIRCULATION
+
+        // Serial.println("Displaying game screen");
+        TCAsel(player1);
+        gameScreen(lcd1);
+        TCAsel(player2);
+        gameScreen(lcd2);
+
+        // Serial.println("spinning motor1");
+        spinRevs(1.0 / 4.0f, direction, stepper1, STEPS_PER_REV);
+        Serial.println("spun motor1");
+
+        // Serial.println("spinning motor2");
+        spinRevs(1.0 / 4.0f, direction, stepper2, STEPS_PER_REV);
+        Serial.println("spun motor2");
+        //  1/4 = spin quarter of a rev, +1 = CW
+        // spinMagn(ENCODER_PIN, RUN_SPEED, TARGET_DELTA, stepper, -1); //-1 for
+        // cw
+        //                            //stopped after returning from this function
+        // spinMagnI2C(RUN_SPEED, TARGET_DELTA, stepper, -1, startAngle_1,
+        // lastCheckpointAngle_1);
+
+        //delay(
+            //100);  // stabilizes for half a second after stopping, then senses ->
+                  // responsible for half of how long it takes to stop & sense
+        // checkRotated90(-1, startAngle_1, lastCheckpointAngle_1, CHECKPOINT); //
+        // TODO: NEED TO CHECK THIS LOGIC
+
+        // Q: IS THIS DELAY(100) NEEDED? maybe reduce or remove totally as causing
+        // hex issues
+
+        TCAsel(player1);
+        classify(VOTING_WINDOW, VOTING_INTERVAL, RGB_sensor1, player1,
+                hex_points1, points1, colorAvgR_1, colorAvgG_1, colorAvgB_1,
+                NUM_COLORS, colorNames, pointsPerColor, redMin_1, redMax_1,
+                greenMin_1, greenMax_1, blueMin_1, blueMax_1, led_pin1);
+        TCAsel(player2);
+        classify(VOTING_WINDOW, VOTING_INTERVAL, RGB_sensor2, player2,
+                hex_points2, points2, colorAvgR_2, colorAvgG_2, colorAvgB_2,
+                NUM_COLORS, colorNames, pointsPerColor, redMin_2, redMax_2,
+                greenMin_2, greenMax_2, blueMin_2, blueMax_2, led_pin2);
+
+        
+        //hex_timer1.begin(0x71); // for hex_timer1 display
+        //hex_timer2.begin(0x72); // for hex_timer2 display
+        //hex_points1.begin(0x75); // for hex_points1 display
+        //hex_points2.begin(0x73); // for hex_points2 display
+        
+      }
+    }
+  */
+}

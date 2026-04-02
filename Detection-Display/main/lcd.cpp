@@ -5,7 +5,7 @@
 
 bool startingMessage(rgb_lcd& lcd) {
   //Serial.println("startingMessage called");
-  
+  //TCASel(player1);
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Game Starting in:");
