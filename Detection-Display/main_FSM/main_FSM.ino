@@ -24,7 +24,7 @@ int points2 = 0;  // player2 pooints
 
 // COUNTDOWN VARS
 // actual countdown
-const unsigned int startSeconds = 10;  // 2 minutes (3000 s)
+const unsigned int startSeconds = 15;  // 2 minutes (3000 s)
 unsigned int remainingSeconds = startSeconds;
 
 // mini pre game countdown
@@ -259,9 +259,13 @@ const int toCirculation = 2;
 
 //FSM
 state curr = GAME_IDLE;
+      
 
 void setup() {
   delay(100);
+
+  digitalWrite(toCirculation, LOW);
+  Serial.println("wrote LOW to circulation");
 
   // initialize serial
   Serial.begin(9600);  // terminal baud rate
@@ -433,6 +437,7 @@ void loop() {
     case GAME_IDLE:
       //After initializing everything, stay here until player is ready to play (e.g. button press)
       Serial.println("GAME IDLE");
+      
       //DO NOTHING
       //start = false;
 
