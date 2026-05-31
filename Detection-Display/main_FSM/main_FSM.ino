@@ -16,6 +16,7 @@
 #include "sensor.h"
 #include "spin.h"
 #include "vars.h"
+#include "servo.h"
 
 /***********ALL VARS************/
 // GLOBAL POINT VAR
@@ -24,7 +25,7 @@ int points2 = 0;  // player2 pooints
 
 // COUNTDOWN VARS
 // actual countdown
-const unsigned int startSeconds = 15;  // 2 minutes (3000 s)
+const unsigned int startSeconds = 2;  // 2 minutes (3000 s)
 unsigned int remainingSeconds = startSeconds;
 
 // mini pre game countdown
@@ -259,7 +260,13 @@ const int toCirculation = 2;
 
 //FSM
 state curr = GAME_IDLE;
-      
+  
+//BUTTON
+const int buttonPin = A0;
+
+//SERVO
+const int servoPin = 7;
+Servo servo;
 
 void setup() {
   delay(100);
@@ -321,6 +328,10 @@ void setup() {
   TCAsel(player2);
   remove_void_sample(RGB_sensor2);  // only happens once in beginning
   //MAR1
+
+  /*** INITIALIZE SERVO ***/
+  servo.attach(servoPin);
+  Serial.println("Servo Motor attach successful.");
 
   /*** INITIALIZE STEPPER ***/
   // Set direction pins to OUTPUT mode explicitly
@@ -426,11 +437,11 @@ typedef enum {
 
 char recvChar;
 
-void read_key_in(){
-  if (Serial.available() > 0) {
-    recvChar = Serial.read();
-  }
-}
+// void read_key_in(){
+//   if (Serial.available() > 0) {
+//     recvChar = Serial.read();
+//   }
+// }
 
 void loop() {
   switch(curr){
@@ -441,8 +452,8 @@ void loop() {
       //DO NOTHING
       //start = false;
 
-      read_key_in();
-      if (recvChar == 'a'){
+      //read_key_in();
+      if (digitalRead(buttonPin) == HIGH){
         curr = GAME_321;
         Serial.println("switch to GAME 321");
       }
@@ -464,6 +475,9 @@ void loop() {
         curr = GAME_GO;
         //send HIGH to circulation = game start -> start spinning screw to get balls up
         digitalWrite(toCirculation, HIGH);
+        //servo unlock for hippos
+        spinStart(servo);
+        Serial.println("Servo spun to start position.");
         Serial.println("sent HIGH to circulation");
         Serial.println("switch to GAME GO");
       } //else start == false, remain in 321 go state
@@ -519,7 +533,10 @@ void loop() {
       TCAsel(player2);
       coolDownMsg(lcd2);
 
-      // spin back to start
+      // servo back for hippos
+      spinBack(servo);
+      Serial.println("Servo spun back to position.");
+      // spin using magn encoder back to start
       Serial.println("Spinning back to start...");
       TCAsel(player1);
       spinBackToZero(stepper1, direction, 0.5, RUN_SPEED,
